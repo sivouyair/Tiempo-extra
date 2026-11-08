@@ -192,7 +192,7 @@ details summary{cursor:pointer;color:var(--muted);font-size:14px}
 <section id="view-oficios" class="view">
   <div class="card">
     <h2>Oficios de tiempo extra</h2>
-    <p class="sub">Captura cada oficio en cuanto lo publiquen: plazas de <b>tu lista</b> por turno y las <b>iniciales</b> anotadas en la hoja. La app reconoce las de tu lista (revisa las iniciales de cada persona en Rol → Personas). Límite para apuntarse: 3 días antes.</p>
+    <p class="sub">Captura cada oficio en cuanto lo publiquen: plazas de <b>tu lista</b> por turno y las <b>iniciales</b> anotadas en la hoja. Si aparecen iniciales que la app no conoce, te pregunta de quién son y las aprende (o las marca como de otra lista). Límite para apuntarse: 3 días antes.</p>
     <div class="actions"><button class="primary" id="btn-add-oficio">+ Capturar oficio</button></div>
     <ul class="clean" id="oficios"></ul>
   </div>
@@ -310,7 +310,7 @@ const uid=()=>Math.random().toString(36).slice(2,9);
 function seed(){
   const names=['Nicolás Guzmán','Julio Buenrostro','Gilberto Moreno','Zacarías Sánchez','Erick Prado','Noel Silva','Felipe Hernández','Gamaliel Mata','Jorge Anzures','Yemil Avilés'];
   const inis=['NGM','JBR','GMR','ZSR','EPR','NSM','FHJR','GMM','JAR','YADL'];
-  const people=names.map((n,i)=>({id:'p'+i,name:n,active:!(i===3||i===8),ini:inis[i],willing:(i===7||i===0),note:i===7?'Por su religión no celebra; suele aceptar fechas grandes':i===0?'Tal vez acepte fechas grandes':''}));
+  const people=names.map((n,i)=>({id:'p'+i,name:n,active:!(i===3||i===8),ini:inis[i],iniOk:[5,6,9].includes(i),willing:(i===7||i===0),note:i===7?'Por su religión no celebra; suele aceptar fechas grandes':i===0?'Tal vez acepte fechas grandes':''}));
   // transcripción del rol (fotografía). Cada fila = persona, cada columna = vuelta.
   const O=d=>({t:'O',d}),V={t:'V',d:null},I={t:'I',d:null};
   const grid=[
@@ -359,11 +359,11 @@ const autoIni=name=>name.split(/\s+/).filter(Boolean).map(w=>w[0]).join('').toUp
 function parseVols(txt){
   const toks=(txt||'').split(/[,;\s]+/).map(t=>norm(t)).filter(Boolean);
   const matched=[],other=[];
-  for(const t of toks){ const p=S.people.find(x=>norm(x.ini)===t); if(p&&!matched.includes(p)) matched.push(p); else if(!p) other.push(t); }
+  for(const t of toks){ const p=S.people.find(x=>norm(x.ini)===t&&x.iniOk); if(p&&!matched.includes(p)) matched.push(p); else if(!p&&!other.includes(t)) other.push(t); }
   return {matched,other};
 }
 let S=load();
-function load(){ let d=null; try{const r=localStorage.getItem(KEY); if(r) d=JSON.parse(r);}catch(e){} if(!d) d=seed(); d.cfg.slotsMin??=4; d.cfg.slotsMax??=5; d.cfg.scenario??='hist'; for(const p of d.people){ if(!p.ini) p.ini=autoIni(p.name); p.willing??=false; p.note??=''; } for(const o of d.oficios||[]){ o.volsTxt??=''; }
+function load(){ let d=null; try{const r=localStorage.getItem(KEY); if(r) d=JSON.parse(r);}catch(e){} if(!d) d=seed(); d.cfg.slotsMin??=4; d.cfg.slotsMax??=5; d.cfg.scenario??='hist'; for(const p of d.people){ if(!p.ini) p.ini=autoIni(p.name); p.iniOk??=false; p.willing??=false; p.note??=''; } d.cfg.ignoredIni??=[]; for(const o of d.oficios||[]){ o.volsTxt??=''; }
   d.favores??=[]; d.cfg.plan??=[]; d.cfg.rest??=[{id:'r1',from:'2026-01-01',to:'2027-01-31',days:[4,5]}]; d.cfg.defAm??=2; d.cfg.wkMin??=2; d.cfg.wkMax??=3; d.cfg.wkAm??=2; d.cfg.wkPm??=0; d.cfg.defPm??=2; for(const o of d.oficios||[]){ if(o.am==null){o.pm=Math.min(2,o.slots|0); o.am=(o.slots|0)-o.pm;} } if(!d.cfg.vacsSeeded){ if(!d.vacs||!d.vacs.length) d.vacs=seedVacs(); d.cfg.vacsSeeded=true; } return d; }
 function save(){ try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){} render(); }
 
@@ -642,7 +642,7 @@ function renderPeople(){
   const U=document.getElementById('people'); U.innerHTML='';
   S.people.forEach((p,i)=>{
     const li=document.createElement('li');
-    li.innerHTML=`<span>${i+1}. ${p.name} <span class="badge" style="background:var(--bg)">${p.ini||'—'}</span>${p.willing?' <span class="badge ok">dispuesto en fechas grandes</span>':''}${p.note?'<div class="sub">'+p.note+'</div>':''} ${p.id===S.cfg.me?'<span class="badge info">tú</span>':''} ${p.active?'':'<span class="badge warn">baja</span>'}</span>
+    li.innerHTML=`<span>${i+1}. ${p.name} <span class="badge" style="background:var(--bg)" title="${p.iniOk?'confirmadas':'sin confirmar'}">${p.ini||'—'}${p.iniOk?'':' ?'}</span>${p.willing?' <span class="badge ok">dispuesto en fechas grandes</span>':''}${p.note?'<div class="sub">'+p.note+'</div>':''} ${p.id===S.cfg.me?'<span class="badge info">tú</span>':''} ${p.active?'':'<span class="badge warn">baja</span>'}</span>
       <span class="row">
         <button class="small" data-a="up">↑</button><button class="small" data-a="down">↓</button>
         <button class="small" data-a="tog">${p.active?'Dar de baja':'Reactivar'}</button>
@@ -660,7 +660,7 @@ function renderPeople(){
       if(a==='ren'){const n=prompt('Nombre',p.name); if(n) p.name=n.trim();}
       if(a==='will') p.willing=!p.willing;
       if(a==='note'){const n=prompt('Nota (disposición, preferencias, acuerdos…)',p.note||''); if(n!==null) p.note=n.trim();}
-      if(a==='ini'){const n=prompt('Iniciales como las anota en la hoja',p.ini||autoIni(p.name)); if(n) p.ini=norm(n);}
+      if(a==='ini'){const n=prompt('Iniciales como las anota en la hoja',p.ini||autoIni(p.name)); if(n){p.ini=norm(n);p.iniOk=true;}}
       if(a==='del'){ if(confirm(`¿Eliminar a ${p.name} y sus registros?`)){ S.people.splice(i,1); for(const k in S.entries) if(k.startsWith(p.id+'|')) delete S.entries[k]; S.vacs=S.vacs.filter(v=>v.personId!==p.id); if(S.cfg.me===p.id) S.cfg.me=null; } }
       save();
     });
@@ -817,7 +817,15 @@ function editOficio(o){
     <label>Nota (turnos, especialidades, iniciales…)</label><textarea id="o-n" rows="2">${o.note||''}</textarea>
     <div class="actions"><button data-close>Cancelar</button><button class="primary" id="o-ok">Guardar</button></div>`,()=>{
     const vt=document.getElementById('o-vt'), vn=document.getElementById('o-v'), vi=document.getElementById('o-vinfo');
-    const refresh=()=>{ const r=parseVols(vt.value); vn.value=r.matched.length; vi.innerHTML=(r.matched.length?`De tu lista: <b>${r.matched.map(p=>p.name).join(', ')}</b>`:'De tu lista: ninguno')+(r.other.length?` · otras listas: ${r.other.join(', ')}`:''); };
+    const refresh=()=>{ const r=parseVols(vt.value); vn.value=r.matched.length;
+      const unknown=r.other.filter(t=>!(S.cfg.ignoredIni||[]).includes(t));
+      const known=r.other.filter(t=>(S.cfg.ignoredIni||[]).includes(t));
+      let h=(r.matched.length?`De tu lista: <b>${r.matched.map(p=>p.name).join(', ')}</b>`:'De tu lista: ninguno')+(known.length?` · otras listas: ${known.join(', ')}`:'');
+      for(const t of unknown){ const guess=S.people.find(x=>norm(x.ini)===t&&!x.iniOk);
+        h+=`<div class="row" style="margin-top:6px"><span><b>${t}</b> ¿de quién es?</span><select data-ini="${t}" style="flex:1 1 120px;padding:6px"><option value="">— otra lista —</option>${activePeople().filter(x=>!x.iniOk||norm(x.ini)===t).map(x=>`<option value="${x.id}" ${guess&&guess.id===x.id?'selected':''}>${x.name}</option>`).join('')}</select></div>`; }
+      vi.innerHTML=h;
+      vi.querySelectorAll('select[data-ini]').forEach(sel=>sel.onchange=()=>{ const t=sel.dataset.ini; if(sel.value){ const px=S.people.find(x=>x.id===sel.value); px.ini=t; px.iniOk=true; } else { S.cfg.ignoredIni.push(t); } refresh(); });
+    };
     vt.oninput=refresh; if(vt.value) refresh();
     if(isNew){ document.getElementById('o-d').onchange=e=>{ const d=e.target.value; if(!d) return; const wk=isWeekend(d); const h=holidayOn(d); const hs=h&&h.split; document.getElementById('o-am').value=hs?hs.am:wk?(S.cfg.wkAm??2):(S.cfg.defAm??2); document.getElementById('o-pm').value=hs?hs.pm:wk?(S.cfg.wkPm??0):(S.cfg.defPm??2); }; }
     document.getElementById('o-ok').onclick=()=>{
