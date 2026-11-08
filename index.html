@@ -120,8 +120,8 @@ details summary{cursor:pointer;color:var(--muted);font-size:14px}
     <h3>Fecha estimada en que te obligan</h3>
     <div class="kpi">
       <div class="card"><div class="v" id="k-date-hist">–</div><div class="l">si se repite el historial (~voluntarios como siempre)</div></div>
-      <div class="card"><div class="v" id="k-date-min">–</div><div class="l">peor caso: nadie se apunta, piden <span id="k-smin"></span></div></div>
-      <div class="card"><div class="v" id="k-date-max">–</div><div class="l">peor caso: nadie se apunta, piden <span id="k-smax"></span></div></div>
+      <div class="card"><div class="v" id="k-date-min">–</div><div class="l">peor caso: nadie se apunta, piden <span id="k-smin"></span> entre semana / <span id="k-wkmin"></span> fin de semana</div></div>
+      <div class="card"><div class="v" id="k-date-max">–</div><div class="l">peor caso: nadie se apunta, piden <span id="k-smax"></span> entre semana / <span id="k-wkmax"></span> fin de semana</div></div>
     </div>
     <div id="panel-alerts"></div>
   </div>
@@ -163,6 +163,7 @@ details summary{cursor:pointer;color:var(--muted);font-size:14px}
       <li>Si tu plaza cae en una fecha que quieres evitar, el único escudo real es <b>vacaciones o curso</b> ese día.</li>
       <li>Rechazar cuesta una semana de productividad y te lo cobran en la siguiente: <b>nunca</b> rechaces.</li>
       <li>Voluntarios hasta <b>3 días antes</b>. Apunta oficios en cuanto salgan.</li>
+      <li>Sábados y domingos solo hay turno de <b>mañana</b>: piden 2 (excepcionalmente 3).</li>
       <li>El turno te lo <b>asignan</b>: los voluntarios suelen tomar la mañana, así que al obligado le queda la <b>tarde (16–23)</b>.</li>
     </ul>
   </div>
@@ -244,6 +245,15 @@ details summary{cursor:pointer;color:var(--muted);font-size:14px}
       <div class="grow"><label>Reparto típico · tarde</label><input type="number" id="cfg-pm" min="0" max="20" step="1"></div>
     </div>
     <p class="sub">Los voluntarios eligen primero y normalmente se llevan la mañana; a los obligados les queda la tarde.</p>
+    <h3>Sábados y domingos</h3>
+    <div class="row">
+      <div class="grow"><label>Plazas normales</label><input type="number" id="cfg-wkmin" min="0" max="20" step="1"></div>
+      <div class="grow"><label>Plazas en casos excepcionales</label><input type="number" id="cfg-wkmax" min="0" max="20" step="1"></div>
+    </div>
+    <div class="row">
+      <div class="grow"><label>Reparto típico · mañana</label><input type="number" id="cfg-wkam" min="0" max="20" step="1"></div>
+      <div class="grow"><label>Reparto típico · tarde</label><input type="number" id="cfg-wkpm" min="0" max="20" step="1"></div>
+    </div>
   </div>
   <div class="card">
     <h2>Datos</h2>
@@ -304,7 +314,7 @@ function seed(){
     people, rounds:10, entries,
     oficios:[{id:uid(),date:'2026-11-16',am:2,pm:2,slots:4,vols:0,note:'Oficio Nims-009 (13-oct-26)'}],
     vacs:seedVacs(),
-    cfg:{me:'p5',avoidKeys:['navidad','anionuevo'],avoidDates:[],defaultForced:2,hot:2,slotsMin:4,slotsMax:5,defAm:2,defPm:2,scenario:'hist',plan:[],rest:[{id:'r1',from:'2026-01-01',to:'2027-01-31',days:[4,5]}]}
+    cfg:{me:'p5',avoidKeys:['navidad','anionuevo'],avoidDates:[],defaultForced:2,hot:2,slotsMin:4,slotsMax:5,defAm:2,defPm:2,wkMin:2,wkMax:3,wkAm:2,wkPm:0,scenario:'hist',plan:[],rest:[{id:'r1',from:'2026-01-01',to:'2027-01-31',days:[4,5]}]}
   };
 }
 /* Calendario de vacaciones 2026 (publicado dic-2025), solo integrantes de la lista.
@@ -326,7 +336,7 @@ function seedVacs(){
   ];
 }
 let S=load();
-function load(){ let d=null; try{const r=localStorage.getItem(KEY); if(r) d=JSON.parse(r);}catch(e){} if(!d) d=seed(); d.cfg.slotsMin??=4; d.cfg.slotsMax??=5; d.cfg.scenario??='hist'; d.cfg.plan??=[]; d.cfg.rest??=[{id:'r1',from:'2026-01-01',to:'2027-01-31',days:[4,5]}]; d.cfg.defAm??=2; d.cfg.defPm??=2; for(const o of d.oficios||[]){ if(o.am==null){o.pm=Math.min(2,o.slots|0); o.am=(o.slots|0)-o.pm;} } if(!d.cfg.vacsSeeded){ if(!d.vacs||!d.vacs.length) d.vacs=seedVacs(); d.cfg.vacsSeeded=true; } return d; }
+function load(){ let d=null; try{const r=localStorage.getItem(KEY); if(r) d=JSON.parse(r);}catch(e){} if(!d) d=seed(); d.cfg.slotsMin??=4; d.cfg.slotsMax??=5; d.cfg.scenario??='hist'; d.cfg.plan??=[]; d.cfg.rest??=[{id:'r1',from:'2026-01-01',to:'2027-01-31',days:[4,5]}]; d.cfg.defAm??=2; d.cfg.wkMin??=2; d.cfg.wkMax??=3; d.cfg.wkAm??=2; d.cfg.wkPm??=0; d.cfg.defPm??=2; for(const o of d.oficios||[]){ if(o.am==null){o.pm=Math.min(2,o.slots|0); o.am=(o.slots|0)-o.pm;} } if(!d.cfg.vacsSeeded){ if(!d.vacs||!d.vacs.length) d.vacs=seedVacs(); d.cfg.vacsSeeded=true; } return d; }
 function save(){ try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){} render(); }
 
 /* ================= Fechas ================= */
@@ -415,17 +425,21 @@ function estimateForced(item,hist,scenario){
     if(scenario==='hist') return {n:Math.max(0,slots-vols),src:'oficio'};
     return {n:Math.max(0,slots-vols),src:'oficio'};
   }
-  if(scenario==='min') return {n:S.cfg.slotsMin|0,src:'sin voluntarios, '+(S.cfg.slotsMin|0)+' plazas'};
-  if(scenario==='max') return {n:S.cfg.slotsMax|0,src:'sin voluntarios, '+(S.cfg.slotsMax|0)+' plazas'};
-  if(item.h&&hist.avg[item.h.key]!=null) return {n:Math.round(hist.avg[item.h.key]),src:'promedio histórico'};
-  return {n:S.cfg.defaultForced|0,src:'por defecto'};
+  const wk=isWeekend(item.date);
+  const mn=wk?(S.cfg.wkMin??2):(S.cfg.slotsMin??4), mx=wk?(S.cfg.wkMax??3):(S.cfg.slotsMax??5);
+  if(scenario==='min') return {n:mn|0,src:'sin voluntarios, '+(mn|0)+' plazas'+(wk?' (fin de semana)':'')};
+  if(scenario==='max') return {n:mx|0,src:'sin voluntarios, '+(mx|0)+' plazas'+(wk?' (fin de semana)':'')};
+  if(item.h&&hist.avg[item.h.key]!=null) return {n:Math.min(mx|0,Math.round(hist.avg[item.h.key])),src:'promedio histórico'};
+  return {n:Math.min(mx|0,S.cfg.defaultForced|0),src:'por defecto'};
 }
+const isWeekend=dateStr=>{const d=parse(dateStr).getDay();return d===0||d===6;};
 function isRest(dateStr){ const wd=parse(dateStr).getDay(); return (S.cfg.rest||[]).some(r=>r.from<=dateStr&&r.to>=dateStr&&r.days.includes(wd)); }
 function isAvoid(dateStr){ const h=holidayOn(dateStr); return S.cfg.avoidDates.includes(dateStr)||(h&&S.cfg.avoidKeys.includes(h.key)); }
 
 /* Reparto por turno: los voluntarios eligen primero (mañana); a los obligados les queda el resto. */
 function shiftSplit(item,forcedN){
-  const am=item.oficio?(item.oficio.am|0):(S.cfg.defAm|0), pm=item.oficio?(item.oficio.pm|0):(S.cfg.defPm|0);
+  const wk=isWeekend(item.date);
+  const am=item.oficio?(item.oficio.am|0):(wk?(S.cfg.wkAm??2):(S.cfg.defAm??2))|0, pm=item.oficio?(item.oficio.pm|0):(wk?(S.cfg.wkPm??0):(S.cfg.defPm??2))|0;
   const total=am+pm; const vols=Math.max(0,total-forcedN); // voluntarios implícitos
   const volAm=Math.min(am,vols), volPm=vols-volAm;
   return {am:Math.max(0,am-volAm), pm:Math.max(0,pm-volPm)}; // plazas que quedan para obligados
@@ -463,7 +477,7 @@ function renderPanel(){
   document.getElementById('k-default').textContent=S.cfg.defaultForced;
   document.getElementById('k-round').textContent=currentRound();
   document.getElementById('k-slots').textContent=sim.ahead;
-  document.getElementById('k-smin').textContent=S.cfg.slotsMin??4; document.getElementById('k-smax').textContent=S.cfg.slotsMax??5;
+  document.getElementById('k-smin').textContent=S.cfg.slotsMin??4; document.getElementById('k-smax').textContent=S.cfg.slotsMax??5; document.getElementById('k-wkmin').textContent=S.cfg.wkMin??2; document.getElementById('k-wkmax').textContent=S.cfg.wkMax??3;
   const dateCell=(id,s)=>{const el=document.getElementById(id); el.textContent=s.myHit?fmtShort(s.myHit.date):'> 12 m'; el.style.color=s.myHit&&!s.myHit.leave&&isAvoid(s.myHit.date)?'var(--danger)':'';};
   dateCell('k-date-hist',simH); dateCell('k-date-min',simMin); dateCell('k-date-max',simMax);
   // alerta de rango
@@ -680,6 +694,7 @@ function renderAjustes(){
   const sm=document.getElementById('cfg-smin'); sm.value=S.cfg.slotsMin??4; sm.onchange=()=>{S.cfg.slotsMin=Math.max(0,+sm.value|0);save();};
   const ca=document.getElementById('cfg-am'); ca.value=S.cfg.defAm??2; ca.onchange=()=>{S.cfg.defAm=Math.max(0,+ca.value|0);save();};
   const cp=document.getElementById('cfg-pm'); cp.value=S.cfg.defPm??2; cp.onchange=()=>{S.cfg.defPm=Math.max(0,+cp.value|0);save();};
+  for(const [id,k,dv] of [['cfg-wkmin','wkMin',2],['cfg-wkmax','wkMax',3],['cfg-wkam','wkAm',2],['cfg-wkpm','wkPm',0]]){ const el=document.getElementById(id); el.value=S.cfg[k]??dv; el.onchange=()=>{S.cfg[k]=Math.max(0,+el.value|0);save();}; }
   const sx=document.getElementById('cfg-smax'); sx.value=S.cfg.slotsMax??5; sx.onchange=()=>{S.cfg.slotsMax=Math.max(0,+sx.value|0);save();};
 }
 
@@ -708,6 +723,7 @@ function editOficio(o){
     <label>Voluntarios de mi lista ya anotados</label><input type="number" id="o-v" min="0" value="${o.vols}">
     <label>Nota (turnos, especialidades, iniciales…)</label><textarea id="o-n" rows="2">${o.note||''}</textarea>
     <div class="actions"><button data-close>Cancelar</button><button class="primary" id="o-ok">Guardar</button></div>`,()=>{
+    if(isNew){ document.getElementById('o-d').onchange=e=>{ const d=e.target.value; if(!d) return; const wk=isWeekend(d); document.getElementById('o-am').value=wk?(S.cfg.wkAm??2):(S.cfg.defAm??2); document.getElementById('o-pm').value=wk?(S.cfg.wkPm??0):(S.cfg.defPm??2); }; }
     document.getElementById('o-ok').onclick=()=>{
       const d=document.getElementById('o-d').value; if(!d){alert('Falta la fecha');return;}
       o.date=d;o.am=+document.getElementById('o-am').value|0;o.pm=+document.getElementById('o-pm').value|0;o.slots=o.am+o.pm;o.vols=+document.getElementById('o-v').value|0;o.note=document.getElementById('o-n').value.trim();
