@@ -162,6 +162,7 @@ details summary{cursor:pointer;color:var(--muted);font-size:14px}
       <li>Si tu plaza cae en una fecha que quieres evitar, el único escudo real es <b>vacaciones o curso</b> ese día.</li>
       <li>Rechazar cuesta una semana de productividad y te lo cobran en la siguiente: <b>nunca</b> rechaces.</li>
       <li>Voluntarios hasta <b>3 días antes</b>. Apunta oficios en cuanto salgan.</li>
+      <li>El turno te lo <b>asignan</b>: los voluntarios suelen tomar la mañana, así que al obligado le queda la <b>tarde (16–23)</b>.</li>
     </ul>
   </div>
 </section>
@@ -231,6 +232,11 @@ details summary{cursor:pointer;color:var(--muted);font-size:14px}
       <div class="grow"><label>Plazas por día que piden normalmente (mínimo)</label><input type="number" id="cfg-smin" min="0" max="20" step="1"></div>
       <div class="grow"><label>Plazas por día cuando piden más (máximo)</label><input type="number" id="cfg-smax" min="0" max="20" step="1"></div>
     </div>
+    <div class="row">
+      <div class="grow"><label>Reparto típico · mañana</label><input type="number" id="cfg-am" min="0" max="20" step="1"></div>
+      <div class="grow"><label>Reparto típico · tarde</label><input type="number" id="cfg-pm" min="0" max="20" step="1"></div>
+    </div>
+    <p class="sub">Los voluntarios eligen primero y normalmente se llevan la mañana; a los obligados les queda la tarde.</p>
   </div>
   <div class="card">
     <h2>Datos</h2>
@@ -289,9 +295,9 @@ function seed(){
   grid.forEach((row,pi)=>row.forEach((c,ri)=>{ if(c) entries[people[pi].id+'|'+(ri+1)]=c; }));
   return {
     people, rounds:10, entries,
-    oficios:[{id:uid(),date:'2026-11-16',slots:4,vols:0,note:'Oficio Nims-009 (13-oct-26): 2 mañana + 2 tarde'}],
+    oficios:[{id:uid(),date:'2026-11-16',am:2,pm:2,slots:4,vols:0,note:'Oficio Nims-009 (13-oct-26)'}],
     vacs:seedVacs(),
-    cfg:{me:'p5',avoidKeys:['navidad','anionuevo'],avoidDates:[],defaultForced:2,hot:2,slotsMin:4,slotsMax:5,scenario:'hist',plan:[]}
+    cfg:{me:'p5',avoidKeys:['navidad','anionuevo'],avoidDates:[],defaultForced:2,hot:2,slotsMin:4,slotsMax:5,defAm:2,defPm:2,scenario:'hist',plan:[]}
   };
 }
 /* Calendario de vacaciones 2026 (publicado dic-2025), solo integrantes de la lista.
@@ -313,7 +319,7 @@ function seedVacs(){
   ];
 }
 let S=load();
-function load(){ let d=null; try{const r=localStorage.getItem(KEY); if(r) d=JSON.parse(r);}catch(e){} if(!d) d=seed(); d.cfg.slotsMin??=4; d.cfg.slotsMax??=5; d.cfg.scenario??='hist'; d.cfg.plan??=[]; if(!d.cfg.vacsSeeded){ if(!d.vacs||!d.vacs.length) d.vacs=seedVacs(); d.cfg.vacsSeeded=true; } return d; }
+function load(){ let d=null; try{const r=localStorage.getItem(KEY); if(r) d=JSON.parse(r);}catch(e){} if(!d) d=seed(); d.cfg.slotsMin??=4; d.cfg.slotsMax??=5; d.cfg.scenario??='hist'; d.cfg.plan??=[]; d.cfg.defAm??=2; d.cfg.defPm??=2; for(const o of d.oficios||[]){ if(o.am==null){o.pm=Math.min(2,o.slots|0); o.am=(o.slots|0)-o.pm;} } if(!d.cfg.vacsSeeded){ if(!d.vacs||!d.vacs.length) d.vacs=seedVacs(); d.cfg.vacsSeeded=true; } return d; }
 function save(){ try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){} render(); }
 
 /* ================= Fechas ================= */
@@ -409,6 +415,13 @@ function estimateForced(item,hist,scenario){
 }
 function isAvoid(dateStr){ const h=holidayOn(dateStr); return S.cfg.avoidDates.includes(dateStr)||(h&&S.cfg.avoidKeys.includes(h.key)); }
 
+/* Reparto por turno: los voluntarios eligen primero (mañana); a los obligados les queda el resto. */
+function shiftSplit(item,forcedN){
+  const am=item.oficio?(item.oficio.am|0):(S.cfg.defAm|0), pm=item.oficio?(item.oficio.pm|0):(S.cfg.defPm|0);
+  const total=am+pm; const vols=Math.max(0,total-forcedN); // voluntarios implícitos
+  const volAm=Math.min(am,vols), volPm=vols-volAm;
+  return {am:Math.max(0,am-volAm), pm:Math.max(0,pm-volPm)}; // plazas que quedan para obligados
+}
 /* simulación: consume la cola fecha por fecha */
 function simulate(scenario,plan){
   plan=plan||S.cfg.plan||[];
@@ -421,10 +434,10 @@ function simulate(scenario,plan){
       const lv=onLeave(p.id,item.date);
       if(lv){ skipped.push({p,lv}); if(p.id===S.cfg.me&&!meSeen){meSeen=true;myHit={date:item.date,leave:lv};} continue; }
       forced.push(p); n--;
-      if(p.id===S.cfg.me){ if(!meSeen){meSeen=true;myHit={date:item.date,leave:null};} }
+      if(p.id===S.cfg.me){ if(!meSeen){meSeen=true;myHit={date:item.date,leave:null,split:shiftSplit(item,est.n)};} }
       else if(!meSeen) slotsBeforeMe++;
     }
-    steps.push({...item,est,forced,skipped,vol});
+    steps.push({...item,est,forced,skipped,vol,split:shiftSplit(item,forced.length)});
   }
   // plazas reales por delante (sin contar vacaciones) según la cola, independiente de fechas
   let ahead=0; for(const x of q){ if(x.p.id===S.cfg.me) break; ahead++; }
@@ -461,10 +474,12 @@ function renderPanel(){
     if(sim.myHit.leave){
       alert('ok','Te salvan tus vacaciones/curso',`El puntero te alcanzaría el <b>${fmt(sim.myHit.date)}</b>${nm}, pero estarás fuera: te anotan y la vuelta se quema sin trabajar.`);
     } else if(isAvoid(sim.myHit.date)){
+      const sp=sim.myHit.split; const turno=sp.am?'mañana o tarde (quedan plazas de ambos turnos)':'<b>tarde 16:00–23:00</b> (los voluntarios se llevan la mañana)';
       alert('danger',`Riesgo: te tocaría el ${fmt(sim.myHit.date)}${nm}`,
-        `Es una fecha que quieres evitar. Opciones: <br>• Pide <b>vacaciones o curso</b> que cubran ese día.<br>• Si una fecha anterior aceptable se queda con huecos, <b>no te apuntes de voluntario</b>: déjate obligar ahí y llegas protegido.<br>• Si esa fecha se llena de voluntarios, el puntero no se mueve y el riesgo se pospone: revisa la app cuando salga el oficio.`);
+        `Es una fecha que quieres evitar, y el turno sería probablemente ${turno}. Opciones: <br>• Pide <b>vacaciones o curso</b> que cubran ese día.<br>• Si una fecha anterior aceptable se queda con huecos, <b>no te apuntes de voluntario</b>: déjate obligar ahí y llegas protegido.<br>• Si esa fecha se llena de voluntarios, el puntero no se mueve y el riesgo se pospone.<br>• Último recurso: si ya es seguro que te obligan ese día, apuntarte de voluntario <b>ese mismo día</b> te asegura la mañana (pero no quema tu vuelta).`);
     } else {
-      alert('info',`Te tocaría aprox. el ${fmt(sim.myHit.date)}${nm}`,`Fecha aceptable según tu configuración. Si te conviene, <b>no te apuntes de voluntario</b> ese día ni los anteriores: deja que te obliguen y quedas protegido toda la vuelta.`);
+      const sp=sim.myHit.split; const turno=sp.am?'mañana o tarde':'tarde 16:00–23:00';
+      alert('info',`Te tocaría aprox. el ${fmt(sim.myHit.date)}${nm}`,`Fecha aceptable según tu configuración; turno probable: <b>${turno}</b>. Si te conviene, <b>no te apuntes de voluntario</b> ese día ni los anteriores: deja que te obliguen y quedas protegido toda la vuelta.`);
     }
   } else {
     alert('ok','Sin riesgo en los próximos 12 meses','Al ritmo estimado el puntero no te alcanza. Puedes ofrecerte de voluntario cuando quieras.');
@@ -494,7 +509,8 @@ function renderPanel(){
     const sk=s.skipped.length?`<div class="muted">Se saltan (fuera): ${s.skipped.map(x=>x.p.name).join(', ')}</div>`:'';
     const tag=(isAvoid(s.date)?'<span class="badge danger">evitar</span>':'')+(s.vol?' <span class="badge ok">tú voluntario</span>':'');
     const src=s.oficio?`oficio: ${s.oficio.slots} plazas − ${s.oficio.vols} vol.`:s.est.src;
-    li.innerHTML=`<div class="d">${fmt(s.date)} ${s.h?'· '+s.h.name:''} ${tag}</div><div>${s.est.n} obligado${s.est.n===1?'':'s'} <span class="muted">(${src})</span> → ${who}</div>${sk}`;
+    const sp=s.forced.length?` <span class="muted">· ${s.split.am?s.split.am+' mañana':''}${s.split.am&&s.split.pm?', ':''}${s.split.pm?s.split.pm+' tarde':''}</span>`:'';
+    li.innerHTML=`<div class="d">${fmt(s.date)} ${s.h?'· '+s.h.name:''} ${tag}</div><div>${s.est.n} obligado${s.est.n===1?'':'s'} <span class="muted">(${src})</span> → ${who}${sp}</div>${sk}`;
     if(s.forced.some(p=>p.id===S.cfg.me)) li.style.background='var(--me)';
     L.appendChild(li);
   }
@@ -579,7 +595,7 @@ function renderOficios(){
     const li=document.createElement('li'); const past=o.date<t; const dl=iso(addDays(parse(o.date),-3));
     const h=holidayOn(o.date); const left=Math.max(0,(o.slots|0)-(o.vols|0));
     li.innerHTML=`<div class="grow"><div><b>${fmt(o.date)}</b> ${h?'· '+h.name:''} ${past?'<span class="badge">pasado</span>':''} ${isAvoid(o.date)?'<span class="badge danger">evitar</span>':''}</div>
-      <div class="sub">${o.slots} plazas de mi lista · ${o.vols} voluntarios · <b>${left} sin cubrir</b> · límite ${fmt(dl)}</div>
+      <div class="sub">${o.am??'?'} mañana + ${o.pm??'?'} tarde · ${o.vols} voluntarios · <b>${left} sin cubrir</b> · límite ${fmt(dl)}</div>
       ${o.note?`<div class="sub">${o.note}</div>`:''}</div>
       <span class="row"><button class="small" data-a="edit">Editar</button><button class="small danger" data-a="del">✕</button></span>`;
     li.querySelector('[data-a=edit]').onclick=()=>editOficio(o);
@@ -621,6 +637,8 @@ function renderAjustes(){
   const df=document.getElementById('cfg-default'); df.value=S.cfg.defaultForced; df.onchange=()=>{S.cfg.defaultForced=Math.max(0,+df.value|0);save();};
   const ht=document.getElementById('cfg-hot'); ht.value=S.cfg.hot; ht.onchange=()=>{S.cfg.hot=Math.max(0,+ht.value|0);save();};
   const sm=document.getElementById('cfg-smin'); sm.value=S.cfg.slotsMin??4; sm.onchange=()=>{S.cfg.slotsMin=Math.max(0,+sm.value|0);save();};
+  const ca=document.getElementById('cfg-am'); ca.value=S.cfg.defAm??2; ca.onchange=()=>{S.cfg.defAm=Math.max(0,+ca.value|0);save();};
+  const cp=document.getElementById('cfg-pm'); cp.value=S.cfg.defPm??2; cp.onchange=()=>{S.cfg.defPm=Math.max(0,+cp.value|0);save();};
   const sx=document.getElementById('cfg-smax'); sx.value=S.cfg.slotsMax??5; sx.onchange=()=>{S.cfg.slotsMax=Math.max(0,+sx.value|0);save();};
 }
 
@@ -642,16 +660,16 @@ function editCell(pid,r){
 }
 
 function editOficio(o){
-  const isNew=!o; o=o||{id:uid(),date:'',slots:2,vols:0,note:''};
+  const isNew=!o; o=o||{id:uid(),date:'',am:S.cfg.defAm??2,pm:S.cfg.defPm??2,slots:4,vols:0,note:''};
   openDlg(`<h2>${isNew?'Capturar oficio':'Editar oficio'}</h2>
     <label>Fecha del tiempo extra</label><input type="date" id="o-d" value="${o.date}">
-    <label>Plazas que salen de MI lista (todos los turnos)</label><input type="number" id="o-s" min="0" value="${o.slots}">
+    <div class="row"><div class="grow"><label>Plazas de mi lista · mañana</label><input type="number" id="o-am" min="0" value="${o.am??2}"></div><div class="grow"><label>Plazas de mi lista · tarde</label><input type="number" id="o-pm" min="0" value="${o.pm??2}"></div></div>
     <label>Voluntarios de mi lista ya anotados</label><input type="number" id="o-v" min="0" value="${o.vols}">
     <label>Nota (turnos, especialidades, iniciales…)</label><textarea id="o-n" rows="2">${o.note||''}</textarea>
     <div class="actions"><button data-close>Cancelar</button><button class="primary" id="o-ok">Guardar</button></div>`,()=>{
     document.getElementById('o-ok').onclick=()=>{
       const d=document.getElementById('o-d').value; if(!d){alert('Falta la fecha');return;}
-      o.date=d;o.slots=+document.getElementById('o-s').value|0;o.vols=+document.getElementById('o-v').value|0;o.note=document.getElementById('o-n').value.trim();
+      o.date=d;o.am=+document.getElementById('o-am').value|0;o.pm=+document.getElementById('o-pm').value|0;o.slots=o.am+o.pm;o.vols=+document.getElementById('o-v').value|0;o.note=document.getElementById('o-n').value.trim();
       if(isNew) S.oficios.push(o); dlg.close(); save();
     };
   });
