@@ -3,7 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Tiempo Extra</title>
+<title>T.E. Strategy</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#1f5eff">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" href="icon-192.png" type="image/png">
 <meta name="description" content="Pronóstico del rol de guardias de tiempo extra: cuándo te toca, qué días evitar y cuándo conviene apuntarse de voluntario.">
 <style>
 :root{
@@ -104,7 +109,7 @@ details summary{cursor:pointer;color:var(--muted);font-size:14px}
 </head>
 <body>
 <header>
-  <h1>Tiempo Extra</h1>
+  <h1>T.E. Strategy</h1>
   <p id="hdr-sub">Rol de guardias · pronóstico personal</p>
 </header>
 <main>
@@ -314,8 +319,8 @@ const uid=()=>Math.random().toString(36).slice(2,9);
 
 function seed(){
   const names=['Nicolás Guzmán','Julio Buenrostro','Gilberto Moreno','Zacarías Sánchez','Erick Prado','Noel Silva','Felipe Hernández','Gamaliel Mata','Jorge Anzures','Yemil Avilés'];
-  const inis=['NGM','JBR','GMR','ZSR','EPR','NSM','FHJR','GMM','JAR','YADL'];
-  const people=names.map((n,i)=>({id:'p'+i,name:n,active:!(i===3||i===8),ini:inis[i],iniOk:[5,6,9].includes(i),willing:(i===7||i===0),note:i===7?'Por su religión no celebra; suele aceptar fechas grandes':i===0?'Tal vez acepte fechas grandes':''}));
+  const inis=['NGM','JBR','GMR','ZSR','EPR','NSM','FHJR','GMD','JAR','YADL'];
+  const people=names.map((n,i)=>({id:'p'+i,name:n,active:!(i===3||i===8),ini:inis[i],iniOk:[5,6,7,9].includes(i),willing:(i===7||i===0),note:i===7?'Por su religión no celebra; suele aceptar fechas grandes':i===0?'Tal vez acepte fechas grandes':''}));
   // transcripción del rol (fotografía). Cada fila = persona, cada columna = vuelta.
   const O=d=>({t:'O',d}),V={t:'V',d:null},I={t:'I',d:null};
   const grid=[
@@ -377,7 +382,7 @@ function migrate(d){
   c.me??=null; c.avoidKeys??=[]; c.avoidDates??=[]; c.defaultForced??=2; c.hot??=2;
   c.slotsMin??=4; c.slotsMax??=5; c.defAm??=2; c.defPm??=2; c.wkMin??=2; c.wkMax??=3; c.wkAm??=2; c.wkPm??=0;
   c.scenario??='hist'; c.plan??=[]; c.rest??=[]; c.ignoredIni??=[]; delete c.vacsSeeded;
-  for(const p of d.people){ p.active??=true; if(!p.ini) p.ini=autoIni(p.name||''); p.iniOk??=false; p.willing??=false; p.note??=''; }
+  for(const p of d.people){ if(p.id==='p7'&&!p.iniOk&&p.ini==='GMM'){p.ini='GMD';p.iniOk=true;} p.active??=true; if(!p.ini) p.ini=autoIni(p.name||''); p.iniOk??=false; p.willing??=false; p.note??=''; }
   for(const o of d.oficios){ o.volsTxt??=''; o.vols??=0; o.slots??=0; o.note??=''; if(o.am==null){o.pm=Math.min(2,o.slots|0); o.am=(o.slots|0)-o.pm;} }
   return d;
 }
@@ -918,6 +923,8 @@ document.getElementById('file-import').onchange=e=>{const f=e.target.files[0];if
 document.getElementById('btn-reset').onclick=()=>{if(confirm('Se borrará todo y se cargará el rol de ejemplo. ¿Continuar?')){S=migrate(seed());save();}};
 
 render();
+// PWA: registrar service worker solo cuando se sirve por http(s) (no en file:// ni dentro del APK)
+if('serviceWorker' in navigator && location.protocol.startsWith('http')){ navigator.serviceWorker.register('sw.js').catch(()=>{}); }
 </script>
 </body>
 </html>
