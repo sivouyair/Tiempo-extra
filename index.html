@@ -191,7 +191,7 @@ details summary{cursor:pointer;color:var(--muted);font-size:14px}
 <section id="view-oficios" class="view">
   <div class="card">
     <h2>Oficios de tiempo extra</h2>
-    <p class="sub">Captura cada oficio en cuanto lo publiquen: cuántas plazas salen de <b>tu lista</b> y cuántos voluntarios ya hay. La fecha límite para apuntarse es 3 días antes.</p>
+    <p class="sub">Captura cada oficio en cuanto lo publiquen: plazas de <b>tu lista</b> por turno y las <b>iniciales</b> anotadas en la hoja. La app reconoce las de tu lista (revisa las iniciales de cada persona en Rol → Personas). Límite para apuntarse: 3 días antes.</p>
     <div class="actions"><button class="primary" id="btn-add-oficio">+ Capturar oficio</button></div>
     <ul class="clean" id="oficios"></ul>
   </div>
@@ -293,7 +293,8 @@ const uid=()=>Math.random().toString(36).slice(2,9);
 
 function seed(){
   const names=['Nicolás Guzmán','Julio Buenrostro','Gilberto Moreno','Zacarías Sánchez','Erick Prado','Noel Silva','Felipe Hernández','Gamaliel Mata','Jorge Anzures','Yemil Avilés'];
-  const people=names.map((n,i)=>({id:'p'+i,name:n,active:!(i===3||i===8)}));
+  const inis=['NGM','JBR','GMR','ZSR','EPR','NSM','FHJR','GMM','JAR','YADL'];
+  const people=names.map((n,i)=>({id:'p'+i,name:n,active:!(i===3||i===8),ini:inis[i]}));
   // transcripción del rol (fotografía). Cada fila = persona, cada columna = vuelta.
   const O=d=>({t:'O',d}),V={t:'V',d:null},I={t:'I',d:null};
   const grid=[
@@ -312,7 +313,7 @@ function seed(){
   grid.forEach((row,pi)=>row.forEach((c,ri)=>{ if(c) entries[people[pi].id+'|'+(ri+1)]=c; }));
   return {
     people, rounds:10, entries,
-    oficios:[{id:uid(),date:'2026-11-16',am:2,pm:2,slots:4,vols:0,note:'Oficio Nims-009 (13-oct-26)'}],
+    oficios:[{id:uid(),date:'2026-11-16',am:2,pm:2,slots:4,vols:0,volsTxt:'',note:'Oficio Nims-009 (13-oct-26)'}],
     vacs:seedVacs(),
     cfg:{me:'p5',avoidKeys:['navidad','anionuevo'],avoidDates:[],defaultForced:2,hot:2,slotsMin:4,slotsMax:5,defAm:2,defPm:2,wkMin:2,wkMax:3,wkAm:2,wkPm:0,scenario:'hist',plan:[],rest:[{id:'r1',from:'2026-01-01',to:'2027-01-31',days:[4,5]}]}
   };
@@ -335,8 +336,18 @@ function seedVacs(){
     V('p5','2026-12-01','2026-12-02'), V('p6','2026-12-01','2026-12-10'), V('p0','2026-12-16','2026-12-31'), V('p2','2026-12-17','2026-12-31'),
   ];
 }
+const norm=t=>(t||'').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^A-Z]/g,'');
+const autoIni=name=>name.split(/\s+/).filter(Boolean).map(w=>w[0]).join('').toUpperCase();
+/* Reconoce iniciales de la hoja: devuelve {matched:[people], other:[txt]} */
+function parseVols(txt){
+  const toks=(txt||'').split(/[,;\s]+/).map(t=>norm(t)).filter(Boolean);
+  const matched=[],other=[];
+  for(const t of toks){ const p=S.people.find(x=>norm(x.ini)===t); if(p&&!matched.includes(p)) matched.push(p); else if(!p) other.push(t); }
+  return {matched,other};
+}
 let S=load();
-function load(){ let d=null; try{const r=localStorage.getItem(KEY); if(r) d=JSON.parse(r);}catch(e){} if(!d) d=seed(); d.cfg.slotsMin??=4; d.cfg.slotsMax??=5; d.cfg.scenario??='hist'; d.cfg.plan??=[]; d.cfg.rest??=[{id:'r1',from:'2026-01-01',to:'2027-01-31',days:[4,5]}]; d.cfg.defAm??=2; d.cfg.wkMin??=2; d.cfg.wkMax??=3; d.cfg.wkAm??=2; d.cfg.wkPm??=0; d.cfg.defPm??=2; for(const o of d.oficios||[]){ if(o.am==null){o.pm=Math.min(2,o.slots|0); o.am=(o.slots|0)-o.pm;} } if(!d.cfg.vacsSeeded){ if(!d.vacs||!d.vacs.length) d.vacs=seedVacs(); d.cfg.vacsSeeded=true; } return d; }
+function load(){ let d=null; try{const r=localStorage.getItem(KEY); if(r) d=JSON.parse(r);}catch(e){} if(!d) d=seed(); d.cfg.slotsMin??=4; d.cfg.slotsMax??=5; d.cfg.scenario??='hist'; for(const p of d.people){ if(!p.ini) p.ini=autoIni(p.name); } for(const o of d.oficios||[]){ o.volsTxt??=''; }
+  d.cfg.plan??=[]; d.cfg.rest??=[{id:'r1',from:'2026-01-01',to:'2027-01-31',days:[4,5]}]; d.cfg.defAm??=2; d.cfg.wkMin??=2; d.cfg.wkMax??=3; d.cfg.wkAm??=2; d.cfg.wkPm??=0; d.cfg.defPm??=2; for(const o of d.oficios||[]){ if(o.am==null){o.pm=Math.min(2,o.slots|0); o.am=(o.slots|0)-o.pm;} } if(!d.cfg.vacsSeeded){ if(!d.vacs||!d.vacs.length) d.vacs=seedVacs(); d.cfg.vacsSeeded=true; } return d; }
 function save(){ try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){} render(); }
 
 /* ================= Fechas ================= */
@@ -452,14 +463,19 @@ function simulate(scenario,plan){
   const steps=[]; let myHit=null; let slotsBeforeMe=0; let meSeen=false;
   for(const item of upcomingDates()){
     const est=estimateForced(item,hist,scenario); const vol=plan.includes(item.date); let n=vol?Math.max(0,est.n-1):est.n; const forced=[],skipped=[];
+    // quienes ya van de voluntarios ese día no pueden ser obligados: se brincan sin consumirlos
+    const volIds=new Set(item.oficio?parseVols(item.oficio.volsTxt).matched.map(p=>p.id):[]); if(vol&&S.cfg.me) volIds.add(S.cfg.me);
+    const deferred=[];
     while(n>0&&qi<q.length){
       const {p,r}=q[qi++];
+      if(volIds.has(p.id)){ deferred.push({p,r}); continue; }
       const lv=onLeave(p.id,item.date);
       if(lv){ skipped.push({p,lv}); if(p.id===S.cfg.me&&!meSeen){meSeen=true;myHit={date:item.date,leave:lv};} continue; }
       forced.push(p); n--;
       if(p.id===S.cfg.me){ if(!meSeen){meSeen=true;myHit={date:item.date,leave:null,split:shiftSplit(item,est.n)};} }
       else if(!meSeen) slotsBeforeMe++;
     }
+    if(deferred.length){ q.splice(qi,0,...deferred); }
     steps.push({...item,est,forced,skipped,vol,split:shiftSplit(item,forced.length)});
   }
   // plazas reales por delante (sin contar vacaciones) según la cola, independiente de fechas
@@ -592,11 +608,12 @@ function renderPeople(){
   const U=document.getElementById('people'); U.innerHTML='';
   S.people.forEach((p,i)=>{
     const li=document.createElement('li');
-    li.innerHTML=`<span>${i+1}. ${p.name} ${p.id===S.cfg.me?'<span class="badge info">tú</span>':''} ${p.active?'':'<span class="badge warn">baja</span>'}</span>
+    li.innerHTML=`<span>${i+1}. ${p.name} <span class="badge" style="background:var(--bg)">${p.ini||'—'}</span> ${p.id===S.cfg.me?'<span class="badge info">tú</span>':''} ${p.active?'':'<span class="badge warn">baja</span>'}</span>
       <span class="row">
         <button class="small" data-a="up">↑</button><button class="small" data-a="down">↓</button>
         <button class="small" data-a="tog">${p.active?'Dar de baja':'Reactivar'}</button>
         <button class="small" data-a="ren">Renombrar</button>
+        <button class="small" data-a="ini">Iniciales</button>
         <button class="small danger" data-a="del">✕</button>
       </span>`;
     li.querySelectorAll('button').forEach(b=>b.onclick=()=>{
@@ -605,6 +622,7 @@ function renderPeople(){
       if(a==='down'&&i<S.people.length-1){[S.people[i+1],S.people[i]]=[S.people[i],S.people[i+1]];}
       if(a==='tog') p.active=!p.active;
       if(a==='ren'){const n=prompt('Nombre',p.name); if(n) p.name=n.trim();}
+      if(a==='ini'){const n=prompt('Iniciales como las anota en la hoja',p.ini||autoIni(p.name)); if(n) p.ini=norm(n);}
       if(a==='del'){ if(confirm(`¿Eliminar a ${p.name} y sus registros?`)){ S.people.splice(i,1); for(const k in S.entries) if(k.startsWith(p.id+'|')) delete S.entries[k]; S.vacs=S.vacs.filter(v=>v.personId!==p.id); if(S.cfg.me===p.id) S.cfg.me=null; } }
       save();
     });
@@ -621,7 +639,7 @@ function renderOficios(){
     const li=document.createElement('li'); const past=o.date<t; const dl=iso(addDays(parse(o.date),-3));
     const h=holidayOn(o.date); const left=Math.max(0,(o.slots|0)-(o.vols|0));
     li.innerHTML=`<div class="grow"><div><b>${fmt(o.date)}</b> ${h?'· '+h.name:''} ${past?'<span class="badge">pasado</span>':''} ${isAvoid(o.date)?'<span class="badge danger">evitar</span>':''}</div>
-      <div class="sub">${o.am??'?'} mañana + ${o.pm??'?'} tarde · ${o.vols} voluntarios · <b>${left} sin cubrir</b> · límite ${fmt(dl)}</div>
+      <div class="sub">${o.am??'?'} mañana + ${o.pm??'?'} tarde · ${o.vols} voluntarios de mi lista · <b>${left} sin cubrir</b> · límite ${fmt(dl)}</div>${o.volsTxt?`<div class="sub">Anotados: ${(()=>{const r=parseVols(o.volsTxt);return [...r.matched.map(p=>'<b>'+p.ini+'</b>'),...r.other].join(', ');})()}</div>`:''}
       ${o.note?`<div class="sub">${o.note}</div>`:''}</div>
       <span class="row"><button class="small" data-a="edit">Editar</button><button class="small danger" data-a="del">✕</button></span>`;
     li.querySelector('[data-a=edit]').onclick=()=>editOficio(o);
@@ -721,13 +739,18 @@ function editOficio(o){
   openDlg(`<h2>${isNew?'Capturar oficio':'Editar oficio'}</h2>
     <label>Fecha del tiempo extra</label><input type="date" id="o-d" value="${o.date}">
     <div class="row"><div class="grow"><label>Plazas de mi lista · mañana</label><input type="number" id="o-am" min="0" value="${o.am??2}"></div><div class="grow"><label>Plazas de mi lista · tarde</label><input type="number" id="o-pm" min="0" value="${o.pm??2}"></div></div>
-    <label>Voluntarios de mi lista ya anotados</label><input type="number" id="o-v" min="0" value="${o.vols}">
+    <label>Iniciales anotadas en la hoja (separadas por coma o espacio)</label><input type="text" id="o-vt" value="${o.volsTxt||''}" placeholder="GND YADL JFTR NSM…" autocapitalize="characters">
+    <div class="sub" id="o-vinfo" style="margin-top:4px"></div>
+    <label>Voluntarios de mi lista (se calcula de las iniciales; puedes corregirlo)</label><input type="number" id="o-v" min="0" value="${o.vols}">
     <label>Nota (turnos, especialidades, iniciales…)</label><textarea id="o-n" rows="2">${o.note||''}</textarea>
     <div class="actions"><button data-close>Cancelar</button><button class="primary" id="o-ok">Guardar</button></div>`,()=>{
+    const vt=document.getElementById('o-vt'), vn=document.getElementById('o-v'), vi=document.getElementById('o-vinfo');
+    const refresh=()=>{ const r=parseVols(vt.value); vn.value=r.matched.length; vi.innerHTML=(r.matched.length?`De tu lista: <b>${r.matched.map(p=>p.name).join(', ')}</b>`:'De tu lista: ninguno')+(r.other.length?` · otras listas: ${r.other.join(', ')}`:''); };
+    vt.oninput=refresh; if(vt.value) refresh();
     if(isNew){ document.getElementById('o-d').onchange=e=>{ const d=e.target.value; if(!d) return; const wk=isWeekend(d); const h=holidayOn(d); const hs=h&&h.split; document.getElementById('o-am').value=hs?hs.am:wk?(S.cfg.wkAm??2):(S.cfg.defAm??2); document.getElementById('o-pm').value=hs?hs.pm:wk?(S.cfg.wkPm??0):(S.cfg.defPm??2); }; }
     document.getElementById('o-ok').onclick=()=>{
       const d=document.getElementById('o-d').value; if(!d){alert('Falta la fecha');return;}
-      o.date=d;o.am=+document.getElementById('o-am').value|0;o.pm=+document.getElementById('o-pm').value|0;o.slots=o.am+o.pm;o.vols=+document.getElementById('o-v').value|0;o.note=document.getElementById('o-n').value.trim();
+      o.date=d;o.am=+document.getElementById('o-am').value|0;o.pm=+document.getElementById('o-pm').value|0;o.slots=o.am+o.pm;o.volsTxt=document.getElementById('o-vt').value.trim();o.vols=+document.getElementById('o-v').value|0;o.note=document.getElementById('o-n').value.trim();
       if(isNew) S.oficios.push(o); dlg.close(); save();
     };
   });
@@ -756,7 +779,7 @@ document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
 });
 document.getElementById('btn-add-round').onclick=()=>{S.rounds++;save();};
 document.getElementById('scenario').onchange=e=>{S.cfg.scenario=e.target.value;save();};
-document.getElementById('btn-add-person').onclick=()=>{const n=prompt('Nombre de la persona (se agrega al final, como el más nuevo)');if(n){S.people.push({id:uid(),name:n.trim(),active:true});save();}};
+document.getElementById('btn-add-person').onclick=()=>{const n=prompt('Nombre de la persona (se agrega al final, como el más nuevo)');if(n){S.people.push({id:uid(),name:n.trim(),active:true,ini:autoIni(n)});save();}};
 document.getElementById('btn-add-oficio').onclick=()=>editOficio(null);
 document.getElementById('btn-add-vac').onclick=()=>editVac(null);
 document.getElementById('btn-add-rest').onclick=()=>editRest(null);
