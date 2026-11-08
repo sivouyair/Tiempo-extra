@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.TiempoExtra" parent="android:Theme.DeviceDefault.DayNight.NoActionBar">
+        <item name="android:statusBarColor">#1F5EFF</item>
+        <item name="android:windowBackground">#F5F6F8</item>
+    </style>
+</resources>

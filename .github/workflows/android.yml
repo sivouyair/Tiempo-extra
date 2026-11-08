@@ -1,0 +1,57 @@
+name: APK Android
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - index.html
+      - android/**
+      - .github/workflows/android.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Copiar la app web a assets
+        run: |
+          mkdir -p android/app/src/main/assets
+          cp index.html android/app/src/main/assets/index.html
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '8.7'
+
+      - name: Compilar APK firmado
+        working-directory: android
+        env:
+          APP_VERSION_CODE: ${{ github.run_number }}
+          APP_VERSION_NAME: 1.${{ github.run_number }}
+        run: gradle assembleRelease --no-daemon
+
+      - name: Renombrar APK
+        run: cp android/app/build/outputs/apk/release/app-release.apk TiempoExtra.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TiempoExtra-apk
+          path: TiempoExtra.apk
+
+      - name: Publicar en Releases (etiqueta "latest")
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete latest --yes --cleanup-tag || true
+          gh release create latest TiempoExtra.apk \
+            --title "Tiempo Extra 1.${{ github.run_number }}" \
+            --notes "APK compilado automáticamente desde el commit ${{ github.sha }}. Descárgalo en el teléfono e instálalo (permite instalar de orígenes desconocidos). Las actualizaciones se instalan encima sin perder datos."

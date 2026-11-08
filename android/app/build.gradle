@@ -1,0 +1,45 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'mx.tiempoextra'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "mx.tiempoextra"
+        minSdk 29
+        targetSdk 34
+        versionCode Integer.parseInt(System.getenv("APP_VERSION_CODE") ?: "1")
+        versionName System.getenv("APP_VERSION_NAME") ?: "1.0"
+    }
+
+    signingConfigs {
+        release {
+            storeFile file("../keystore/tiempoextra.jks")
+            storePassword "tiempoextra"
+            keyAlias "tiempoextra"
+            keyPassword "tiempoextra"
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.release
+        }
+        debug {
+            signingConfig signingConfigs.release
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    implementation 'androidx.appcompat:appcompat:1.7.0'
+    implementation 'androidx.webkit:webkit:1.11.0'
+}
