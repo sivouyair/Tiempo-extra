@@ -310,7 +310,7 @@ const uid=()=>Math.random().toString(36).slice(2,9);
 function seed(){
   const names=['Nicolás Guzmán','Julio Buenrostro','Gilberto Moreno','Zacarías Sánchez','Erick Prado','Noel Silva','Felipe Hernández','Gamaliel Mata','Jorge Anzures','Yemil Avilés'];
   const inis=['NGM','JBR','GMR','ZSR','EPR','NSM','FHJR','GMM','JAR','YADL'];
-  const people=names.map((n,i)=>({id:'p'+i,name:n,active:!(i===3||i===8),ini:inis[i]}));
+  const people=names.map((n,i)=>({id:'p'+i,name:n,active:!(i===3||i===8),ini:inis[i],willing:(i===7||i===0),note:i===7?'Por su religión no celebra; suele aceptar fechas grandes':i===0?'Tal vez acepte fechas grandes':''}));
   // transcripción del rol (fotografía). Cada fila = persona, cada columna = vuelta.
   const O=d=>({t:'O',d}),V={t:'V',d:null},I={t:'I',d:null};
   const grid=[
@@ -363,7 +363,7 @@ function parseVols(txt){
   return {matched,other};
 }
 let S=load();
-function load(){ let d=null; try{const r=localStorage.getItem(KEY); if(r) d=JSON.parse(r);}catch(e){} if(!d) d=seed(); d.cfg.slotsMin??=4; d.cfg.slotsMax??=5; d.cfg.scenario??='hist'; for(const p of d.people){ if(!p.ini) p.ini=autoIni(p.name); } for(const o of d.oficios||[]){ o.volsTxt??=''; }
+function load(){ let d=null; try{const r=localStorage.getItem(KEY); if(r) d=JSON.parse(r);}catch(e){} if(!d) d=seed(); d.cfg.slotsMin??=4; d.cfg.slotsMax??=5; d.cfg.scenario??='hist'; for(const p of d.people){ if(!p.ini) p.ini=autoIni(p.name); p.willing??=false; p.note??=''; } for(const o of d.oficios||[]){ o.volsTxt??=''; }
   d.favores??=[]; d.cfg.plan??=[]; d.cfg.rest??=[{id:'r1',from:'2026-01-01',to:'2027-01-31',days:[4,5]}]; d.cfg.defAm??=2; d.cfg.wkMin??=2; d.cfg.wkMax??=3; d.cfg.wkAm??=2; d.cfg.wkPm??=0; d.cfg.defPm??=2; for(const o of d.oficios||[]){ if(o.am==null){o.pm=Math.min(2,o.slots|0); o.am=(o.slots|0)-o.pm;} } if(!d.cfg.vacsSeeded){ if(!d.vacs||!d.vacs.length) d.vacs=seedVacs(); d.cfg.vacsSeeded=true; } return d; }
 function save(){ try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){} render(); }
 
@@ -482,7 +482,7 @@ function coverCandidates(dateStr,sim){
   const cr=currentRound(); activePeople().forEach(p=>{ if(entry(p.id,cr)) burned.add(p.id); });
   return activePeople().filter(p=>p.id!==S.cfg.me&&!onLeave(p.id,dateStr)&&!sameDay.has(p.id)).map(p=>{
     const owes=(S.favores||[]).filter(f=>f.workerId===S.cfg.me&&f.forId===p.id).length-(S.favores||[]).filter(f=>f.workerId===p.id&&f.forId===S.cfg.me).length;
-    return {p,burned:burned.has(p.id),owes,score:(burned.has(p.id)?2:0)+Math.max(-1,Math.min(1,owes))};
+    return {p,burned:burned.has(p.id),owes,score:(p.willing?4:0)+(burned.has(p.id)?2:0)+Math.max(-1,Math.min(1,owes))};
   }).sort((a,b)=>b.score-a.score);
 }
 /* simulación: consume la cola fecha por fecha */
@@ -547,7 +547,7 @@ function renderPanel(){
         `Es una fecha que quieres evitar${isRest(sim.myHit.date)?' <b>y además cae en tu descanso</b>':''}, y el turno sería probablemente ${turno}. Opciones: <br>• Pide <b>vacaciones o curso</b> que cubran ese día.<br>• Si una fecha anterior aceptable se queda con huecos, <b>no te apuntes de voluntario</b>: déjate obligar ahí y llegas protegido.<br>• Si esa fecha se llena de voluntarios, el puntero no se mueve y el riesgo se pospone.<br>• <b>Pide una suplencia</b>: si alguien trabaja por ti, tú sigues anotado (te quemas la vuelta) sin trabajar ese día.<br>• Último recurso: si ya es seguro que te obligan ese día, apuntarte de voluntario <b>ese mismo día</b> te asegura la mañana (pero no quema tu vuelta).`);
       const cands=coverCandidates(sim.myHit.date,sim);
       if(cands.length){
-        const list=cands.slice(0,6).map(c=>`${c.p.name}${c.burned?' <span class="badge ok">ya protegido</span>':' <span class="badge warn">aún le toca</span>'}${c.owes>0?' <span class="badge info">te debe '+c.owes+'</span>':c.owes<0?' <span class="badge">le debes '+(-c.owes)+'</span>':''}`).join('<br>');
+        const list=cands.slice(0,6).map(c=>`${c.p.name}${c.p.willing?' <span class="badge ok">dispuesto</span>':''}${c.p.note?' <span class="muted">· '+c.p.note+'</span>':''}${c.burned?' <span class="badge ok">ya protegido</span>':' <span class="badge warn">aún le toca</span>'}${c.owes>0?' <span class="badge info">te debe '+c.owes+'</span>':c.owes<0?' <span class="badge">le debes '+(-c.owes)+'</span>':''}`).join('<br>');
         alert('info',`A quién pedir suplencia para el ${fmt(sim.myHit.date)}`,`Disponibles ese día (sin vacaciones/curso y sin plaza forzada ese día). Suplir no cambia su rol; los marcados "ya protegido" se quemaron la vuelta antes de esa fecha.<br>${list}`);
       }
     } else if(isRest(sim.myHit.date)){
@@ -642,12 +642,14 @@ function renderPeople(){
   const U=document.getElementById('people'); U.innerHTML='';
   S.people.forEach((p,i)=>{
     const li=document.createElement('li');
-    li.innerHTML=`<span>${i+1}. ${p.name} <span class="badge" style="background:var(--bg)">${p.ini||'—'}</span> ${p.id===S.cfg.me?'<span class="badge info">tú</span>':''} ${p.active?'':'<span class="badge warn">baja</span>'}</span>
+    li.innerHTML=`<span>${i+1}. ${p.name} <span class="badge" style="background:var(--bg)">${p.ini||'—'}</span>${p.willing?' <span class="badge ok">dispuesto en fechas grandes</span>':''}${p.note?'<div class="sub">'+p.note+'</div>':''} ${p.id===S.cfg.me?'<span class="badge info">tú</span>':''} ${p.active?'':'<span class="badge warn">baja</span>'}</span>
       <span class="row">
         <button class="small" data-a="up">↑</button><button class="small" data-a="down">↓</button>
         <button class="small" data-a="tog">${p.active?'Dar de baja':'Reactivar'}</button>
         <button class="small" data-a="ren">Renombrar</button>
         <button class="small" data-a="ini">Iniciales</button>
+        <button class="small" data-a="will">${p.willing?'★ Dispuesto':'☆ Dispuesto'}</button>
+        <button class="small" data-a="note">Nota</button>
         <button class="small danger" data-a="del">✕</button>
       </span>`;
     li.querySelectorAll('button').forEach(b=>b.onclick=()=>{
@@ -656,6 +658,8 @@ function renderPeople(){
       if(a==='down'&&i<S.people.length-1){[S.people[i+1],S.people[i]]=[S.people[i],S.people[i+1]];}
       if(a==='tog') p.active=!p.active;
       if(a==='ren'){const n=prompt('Nombre',p.name); if(n) p.name=n.trim();}
+      if(a==='will') p.willing=!p.willing;
+      if(a==='note'){const n=prompt('Nota (disposición, preferencias, acuerdos…)',p.note||''); if(n!==null) p.note=n.trim();}
       if(a==='ini'){const n=prompt('Iniciales como las anota en la hoja',p.ini||autoIni(p.name)); if(n) p.ini=norm(n);}
       if(a==='del'){ if(confirm(`¿Eliminar a ${p.name} y sus registros?`)){ S.people.splice(i,1); for(const k in S.entries) if(k.startsWith(p.id+'|')) delete S.entries[k]; S.vacs=S.vacs.filter(v=>v.personId!==p.id); if(S.cfg.me===p.id) S.cfg.me=null; } }
       save();
