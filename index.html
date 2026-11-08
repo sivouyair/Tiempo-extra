@@ -115,8 +115,13 @@ details summary{cursor:pointer;color:var(--muted);font-size:14px}
     <h2>Tu posición hoy</h2>
     <div class="kpi">
       <div class="card"><div class="v" id="k-slots">–</div><div class="l">plazas forzadas por delante</div></div>
-      <div class="card"><div class="v" id="k-date">–</div><div class="l">fecha estimada en que te obligan</div></div>
       <div class="card"><div class="v" id="k-round">–</div><div class="l">vuelta actual del rol</div></div>
+    </div>
+    <h3>Fecha estimada en que te obligan</h3>
+    <div class="kpi">
+      <div class="card"><div class="v" id="k-date-hist">–</div><div class="l">si se repite el historial (~voluntarios como siempre)</div></div>
+      <div class="card"><div class="v" id="k-date-min">–</div><div class="l">peor caso: nadie se apunta, piden <span id="k-smin"></span></div></div>
+      <div class="card"><div class="v" id="k-date-max">–</div><div class="l">peor caso: nadie se apunta, piden <span id="k-smax"></span></div></div>
     </div>
     <div id="panel-alerts"></div>
   </div>
@@ -130,9 +135,15 @@ details summary{cursor:pointer;color:var(--muted);font-size:14px}
   <div class="card">
     <h2>Próximas fechas</h2>
     <p class="sub">Festivos y oficios de los próximos 12 meses, con la simulación del puntero.</p>
-    <ul class="clean sim" id="sim"></ul>
+    <label>Escenario</label>
+    <select id="scenario">
+      <option value="hist">Histórico: obligados promedio de cada festivo</option>
+      <option value="min">Pesimista: nadie se apunta, piden el mínimo</option>
+      <option value="max">Muy pesimista: nadie se apunta, piden el máximo</option>
+    </select>
+    <ul class="clean sim" id="sim" style="margin-top:8px"></ul>
     <details style="margin-top:10px"><summary>¿Cómo se estima?</summary>
-      <p class="sub">Si hay oficio capturado: plazas de tu lista − voluntarios anotados. Si no, se usa el promedio histórico de obligados en ese festivo según el rol (o <b id="k-default"></b> si no hay historial). Edita el valor por defecto en Ajustes.</p>
+      <p class="sub">Si hay oficio capturado: plazas de tu lista − voluntarios anotados (en todos los escenarios). Si no: en <b>Histórico</b> se usa el promedio de obligados de ese festivo según el rol (o <b id="k-default"></b> si no hay historial); en los <b>pesimistas</b> se asume que nadie se apunta y se fuerzan todas las plazas (mínimo/máximo configurables en Ajustes).</p>
     </details>
   </div>
 
@@ -209,6 +220,10 @@ details summary{cursor:pointer;color:var(--muted);font-size:14px}
     <input type="number" id="cfg-default" min="0" max="20" step="1">
     <label>Plazas forzadas desde las que la app te considera "en zona caliente"</label>
     <input type="number" id="cfg-hot" min="0" max="10" step="1">
+    <div class="row">
+      <div class="grow"><label>Plazas por día que piden normalmente (mínimo)</label><input type="number" id="cfg-smin" min="0" max="20" step="1"></div>
+      <div class="grow"><label>Plazas por día cuando piden más (máximo)</label><input type="number" id="cfg-smax" min="0" max="20" step="1"></div>
+    </div>
   </div>
   <div class="card">
     <h2>Datos</h2>
@@ -267,13 +282,13 @@ function seed(){
   grid.forEach((row,pi)=>row.forEach((c,ri)=>{ if(c) entries[people[pi].id+'|'+(ri+1)]=c; }));
   return {
     people, rounds:10, entries,
-    oficios:[{id:uid(),date:'2026-11-16',slots:2,vols:0,note:'Oficio Nims-009 (13-oct-26): 2 turnos × 4 plazas por centro'}],
+    oficios:[{id:uid(),date:'2026-11-16',slots:4,vols:0,note:'Oficio Nims-009 (13-oct-26): 2 mañana + 2 tarde'}],
     vacs:[],
-    cfg:{me:'p5',avoidKeys:['navidad','anionuevo'],avoidDates:[],defaultForced:2,hot:2}
+    cfg:{me:'p5',avoidKeys:['navidad','anionuevo'],avoidDates:[],defaultForced:2,hot:2,slotsMin:4,slotsMax:5,scenario:'hist'}
   };
 }
 let S=load();
-function load(){ try{const r=localStorage.getItem(KEY); if(r) return JSON.parse(r);}catch(e){} return seed(); }
+function load(){ let d=null; try{const r=localStorage.getItem(KEY); if(r) d=JSON.parse(r);}catch(e){} if(!d) d=seed(); d.cfg.slotsMin??=4; d.cfg.slotsMax??=5; d.cfg.scenario??='hist'; return d; }
 function save(){ try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){} render(); }
 
 /* ================= Fechas ================= */
@@ -354,19 +369,27 @@ function upcomingDates(){
   for(const x of upcomingHolidays(today(),12)){ if(!map[x.date]) map[x.date]={date:x.date,oficio:null,h:x.h}; }
   return Object.values(map).sort((a,b)=>a.date<b.date?-1:1);
 }
-function estimateForced(item,hist){
-  if(item.oficio) return {n:Math.max(0,(item.oficio.slots|0)-(item.oficio.vols|0)),src:'oficio'};
-  if(item.h&&hist.avg[item.h.key]!=null) return {n:Math.round(hist.avg[item.h.key]),src:'historial'};
-  return {n:S.cfg.defaultForced|0,src:'defecto'};
+function estimateForced(item,hist,scenario){
+  scenario=scenario||S.cfg.scenario||'hist';
+  if(item.oficio){
+    // oficio capturado: hoy ya hay X voluntarios; en el peor caso no se apunta nadie más
+    const slots=item.oficio.slots|0, vols=item.oficio.vols|0;
+    if(scenario==='hist') return {n:Math.max(0,slots-vols),src:'oficio'};
+    return {n:Math.max(0,slots-vols),src:'oficio'};
+  }
+  if(scenario==='min') return {n:S.cfg.slotsMin|0,src:'sin voluntarios, '+(S.cfg.slotsMin|0)+' plazas'};
+  if(scenario==='max') return {n:S.cfg.slotsMax|0,src:'sin voluntarios, '+(S.cfg.slotsMax|0)+' plazas'};
+  if(item.h&&hist.avg[item.h.key]!=null) return {n:Math.round(hist.avg[item.h.key]),src:'promedio histórico'};
+  return {n:S.cfg.defaultForced|0,src:'por defecto'};
 }
 function isAvoid(dateStr){ const h=holidayOn(dateStr); return S.cfg.avoidDates.includes(dateStr)||(h&&S.cfg.avoidKeys.includes(h.key)); }
 
 /* simulación: consume la cola fecha por fecha */
-function simulate(){
+function simulate(scenario){
   const hist=forcedHistory(); const q=queue(60); let qi=0;
   const steps=[]; let myHit=null; let slotsBeforeMe=0; let meSeen=false;
   for(const item of upcomingDates()){
-    const est=estimateForced(item,hist); let n=est.n; const forced=[],skipped=[];
+    const est=estimateForced(item,hist,scenario); let n=est.n; const forced=[],skipped=[];
     while(n>0&&qi<q.length){
       const {p,r}=q[qi++];
       const lv=onLeave(p.id,item.date);
@@ -387,15 +410,26 @@ function render(){ renderPanel(); renderRol(); renderPeople(); renderOficios(); 
 
 function renderPanel(){
   const m=me(); document.getElementById('hdr-sub').textContent=m?`Rol de guardias · ${m.name}`:'Rol de guardias';
-  const sim=simulate();
+  const simH=simulate('hist'), simMin=simulate('min'), simMax=simulate('max');
+  const sim=S.cfg.scenario==='min'?simMin:S.cfg.scenario==='max'?simMax:simH;
+  document.getElementById('scenario').value=S.cfg.scenario||'hist';
   document.getElementById('k-default').textContent=S.cfg.defaultForced;
   document.getElementById('k-round').textContent=currentRound();
   document.getElementById('k-slots').textContent=sim.ahead;
-  document.getElementById('k-date').textContent=sim.myHit?fmtShort(sim.myHit.date):'> 12 meses';
+  document.getElementById('k-smin').textContent=S.cfg.slotsMin??4; document.getElementById('k-smax').textContent=S.cfg.slotsMax??5;
+  const dateCell=(id,s)=>{const el=document.getElementById(id); el.textContent=s.myHit?fmtShort(s.myHit.date):'> 12 m'; el.style.color=s.myHit&&!s.myHit.leave&&isAvoid(s.myHit.date)?'var(--danger)':'';};
+  dateCell('k-date-hist',simH); dateCell('k-date-min',simMin); dateCell('k-date-max',simMax);
+  // alerta de rango
+  const hits=[simH,simMin,simMax].filter(s=>s.myHit&&!s.myHit.leave);
+  const badHits=hits.filter(s=>isAvoid(s.myHit.date));
   const A=document.getElementById('panel-alerts'); A.innerHTML='';
   const alert=(cls,title,body)=>{const d=document.createElement('div');d.className='alert '+cls;d.innerHTML=`<b>${title}</b>${body}`;A.appendChild(d);};
   if(!m){alert('warn','Elige quién eres','En Ajustes, selecciona tu nombre.');return;}
   const hot=sim.ahead<=(S.cfg.hot|0);
+  if(badHits.length&&!(sim.myHit&&!sim.myHit.leave&&isAvoid(sim.myHit.date))){
+    const ds=[...new Set(badHits.map(s=>s.myHit.date))].map(d=>fmt(d)).join(', ');
+    alert('danger','Ojo con el peor caso',`Si en las próximas fechas nadie se apunta de voluntario, el puntero te alcanzaría en una fecha que quieres evitar: <b>${ds}</b>. Vigila los oficios de esas fechas y, si ves pocos voluntarios, ten lista la opción de vacaciones/curso.`);
+  }
   if(sim.myHit){
     const h=holidayOn(sim.myHit.date); const nm=h?` (${h.name})`:'';
     if(sim.myHit.leave){
@@ -433,7 +467,7 @@ function renderPanel(){
     const who=s.forced.map(p=>p.id===S.cfg.me?`<b>${p.name}</b>`:p.name).join(', ')||'<span class="muted">nadie</span>';
     const sk=s.skipped.length?`<div class="muted">Se saltan (fuera): ${s.skipped.map(x=>x.p.name).join(', ')}</div>`:'';
     const tag=isAvoid(s.date)?'<span class="badge danger">evitar</span>':'';
-    const src=s.oficio?`oficio: ${s.oficio.slots} plazas − ${s.oficio.vols} vol.`:(s.est.src==='historial'?'promedio histórico':'por defecto');
+    const src=s.oficio?`oficio: ${s.oficio.slots} plazas − ${s.oficio.vols} vol.`:s.est.src;
     li.innerHTML=`<div class="d">${fmt(s.date)} ${s.h?'· '+s.h.name:''} ${tag}</div><div>${s.est.n} obligado${s.est.n===1?'':'s'} <span class="muted">(${src})</span> → ${who}</div>${sk}`;
     if(s.forced.some(p=>p.id===S.cfg.me)) li.style.background='var(--me)';
     L.appendChild(li);
@@ -533,6 +567,8 @@ function renderAjustes(){
   }
   const df=document.getElementById('cfg-default'); df.value=S.cfg.defaultForced; df.onchange=()=>{S.cfg.defaultForced=Math.max(0,+df.value|0);save();};
   const ht=document.getElementById('cfg-hot'); ht.value=S.cfg.hot; ht.onchange=()=>{S.cfg.hot=Math.max(0,+ht.value|0);save();};
+  const sm=document.getElementById('cfg-smin'); sm.value=S.cfg.slotsMin??4; sm.onchange=()=>{S.cfg.slotsMin=Math.max(0,+sm.value|0);save();};
+  const sx=document.getElementById('cfg-smax'); sx.value=S.cfg.slotsMax??5; sx.onchange=()=>{S.cfg.slotsMax=Math.max(0,+sx.value|0);save();};
 }
 
 /* ================= Diálogos ================= */
@@ -590,6 +626,7 @@ document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
   window.scrollTo(0,0);
 });
 document.getElementById('btn-add-round').onclick=()=>{S.rounds++;save();};
+document.getElementById('scenario').onchange=e=>{S.cfg.scenario=e.target.value;save();};
 document.getElementById('btn-add-person').onclick=()=>{const n=prompt('Nombre de la persona (se agrega al final, como el más nuevo)');if(n){S.people.push({id:uid(),name:n.trim(),active:true});save();}};
 document.getElementById('btn-add-oficio').onclick=()=>editOficio(null);
 document.getElementById('btn-add-vac').onclick=()=>editVac(null);
