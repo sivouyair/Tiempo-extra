@@ -1,0 +1,605 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tiempo Extra</title>
+<meta name="description" content="Pronóstico del rol de guardias de tiempo extra: cuándo te toca, qué días evitar y cuándo conviene apuntarse de voluntario.">
+<style>
+:root{
+  --bg:#f5f6f8; --card:#ffffff; --text:#1b1f27; --muted:#5f6675; --line:#e2e5eb;
+  --accent:#1f5eff; --accent-soft:#e8eeff; --ok:#1d8a4e; --ok-soft:#e3f5ea;
+  --warn:#b96b00; --warn-soft:#fff2db; --danger:#c62828; --danger-soft:#fde8e8;
+  --me:#fff6c7; --radius:14px;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0f1115; --card:#181b22; --text:#e8eaf0; --muted:#9aa2b1; --line:#2a2f3a;
+    --accent:#7aa2ff; --accent-soft:#1c2744; --ok:#5ccb8a; --ok-soft:#153324;
+    --warn:#f0b35a; --warn-soft:#3a2a10; --danger:#ff7b7b; --danger-soft:#3c1a1a; --me:#3a3414;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0f1115; --card:#181b22; --text:#e8eaf0; --muted:#9aa2b1; --line:#2a2f3a;
+  --accent:#7aa2ff; --accent-soft:#1c2744; --ok:#5ccb8a; --ok-soft:#153324;
+  --warn:#f0b35a; --warn-soft:#3a2a10; --danger:#ff7b7b; --danger-soft:#3c1a1a; --me:#3a3414;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font:16px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding-bottom:84px}
+header{padding:18px 16px 8px}
+header h1{margin:0;font-size:22px}
+header p{margin:4px 0 0;color:var(--muted);font-size:14px}
+main{padding:0 16px;max-width:860px;margin:0 auto}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:16px;margin:12px 0}
+.card h2{margin:0 0 10px;font-size:17px}
+.card h3{margin:14px 0 6px;font-size:15px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.big{font-size:34px;font-weight:700;line-height:1.1}
+.sub{color:var(--muted);font-size:14px}
+.badge{display:inline-block;padding:3px 10px;border-radius:999px;font-size:13px;font-weight:600}
+.badge.ok{background:var(--ok-soft);color:var(--ok)}
+.badge.warn{background:var(--warn-soft);color:var(--warn)}
+.badge.danger{background:var(--danger-soft);color:var(--danger)}
+.badge.info{background:var(--accent-soft);color:var(--accent)}
+.alert{border-radius:10px;padding:12px 14px;margin:10px 0;font-size:15px}
+.alert.ok{background:var(--ok-soft);border-left:4px solid var(--ok)}
+.alert.warn{background:var(--warn-soft);border-left:4px solid var(--warn)}
+.alert.danger{background:var(--danger-soft);border-left:4px solid var(--danger)}
+.alert.info{background:var(--accent-soft);border-left:4px solid var(--accent)}
+.alert > b:first-child{display:block;margin-bottom:2px}
+ul.clean{list-style:none;padding:0;margin:0}
+ul.clean li{padding:10px 0;border-top:1px solid var(--line);display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap}
+ul.clean li:first-child{border-top:none}
+ul.clean.block li{display:block}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.grow{flex:1 1 140px}
+label{display:block;font-size:13px;color:var(--muted);margin:8px 0 4px}
+input,select,textarea,button{font:inherit}
+input,select,textarea{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--text)}
+input[type=checkbox]{width:auto;margin-right:6px}
+button{padding:10px 14px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--text);cursor:pointer}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+button.danger{color:var(--danger);border-color:var(--danger)}
+button.small{padding:6px 10px;font-size:13px}
+.tabs{position:fixed;bottom:0;left:0;right:0;background:var(--card);border-top:1px solid var(--line);display:flex;justify-content:space-around;padding:6px 4px calc(6px + env(safe-area-inset-bottom))}
+.tabs button{flex:1;border:none;background:none;color:var(--muted);font-size:12px;padding:6px 2px;display:flex;flex-direction:column;align-items:center;gap:2px}
+.tabs button span.ic{font-size:20px}
+.tabs button.active{color:var(--accent);font-weight:600}
+.view{display:none}.view.active{display:block}
+.tablewrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0 -16px;padding:0 16px}
+table{border-collapse:collapse;font-size:13px;min-width:100%}
+th,td{border:1px solid var(--line);padding:6px 8px;text-align:center;white-space:nowrap}
+th{background:var(--bg);font-weight:600}
+td.name{text-align:left;font-weight:600;position:sticky;left:0;background:var(--card);z-index:1}
+tr.me td{background:var(--me)}
+tr.me td.name{background:var(--me)}
+tr.inactive td{opacity:.45;text-decoration:line-through}
+td.cell{cursor:pointer;min-width:74px}
+td.cell.O{color:var(--text)}
+td.cell.V{color:var(--accent)}
+td.cell.C{color:var(--warn)}
+td.cell.I{color:var(--danger)}
+td.cell.empty{color:var(--muted)}
+td.pointer{box-shadow:inset 0 0 0 2px var(--accent)}
+.legend{display:flex;gap:12px;flex-wrap:wrap;font-size:13px;color:var(--muted);margin-top:8px}
+.muted{color:var(--muted)}
+.right{text-align:right}
+dialog{border:none;border-radius:var(--radius);padding:0;max-width:420px;width:calc(100% - 32px);background:var(--card);color:var(--text)}
+dialog::backdrop{background:rgba(0,0,0,.45)}
+dialog .inner{padding:18px}
+dialog h2{margin:0 0 8px;font-size:17px}
+.actions{display:flex;gap:8px;justify-content:flex-end;margin-top:14px;flex-wrap:wrap}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{padding:6px 10px;border-radius:999px;border:1px solid var(--line);font-size:13px;cursor:pointer;user-select:none}
+.chip.on{background:var(--danger-soft);border-color:var(--danger);color:var(--danger)}
+.kpi{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px}
+.kpi .card{margin:0;padding:12px}
+.kpi .v{font-size:26px;font-weight:700}
+.kpi .l{font-size:12px;color:var(--muted)}
+details summary{cursor:pointer;color:var(--muted);font-size:14px}
+.sim{font-size:14px}
+.sim li{display:block}
+.sim .d{font-weight:600}
+</style>
+</head>
+<body>
+<header>
+  <h1>Tiempo Extra</h1>
+  <p id="hdr-sub">Rol de guardias · pronóstico personal</p>
+</header>
+<main>
+
+<!-- ============ PANEL ============ -->
+<section id="view-panel" class="view active">
+  <div class="card">
+    <h2>Tu posición hoy</h2>
+    <div class="kpi">
+      <div class="card"><div class="v" id="k-slots">–</div><div class="l">plazas forzadas por delante</div></div>
+      <div class="card"><div class="v" id="k-date">–</div><div class="l">fecha estimada en que te obligan</div></div>
+      <div class="card"><div class="v" id="k-round">–</div><div class="l">vuelta actual del rol</div></div>
+    </div>
+    <div id="panel-alerts"></div>
+  </div>
+
+  <div class="card">
+    <h2>Fila del puntero</h2>
+    <p class="sub">Orden en que irán cayendo las plazas que los voluntarios no llenen. Los que estén de vacaciones ese día se saltan.</p>
+    <ul class="clean" id="queue"></ul>
+  </div>
+
+  <div class="card">
+    <h2>Próximas fechas</h2>
+    <p class="sub">Festivos y oficios de los próximos 12 meses, con la simulación del puntero.</p>
+    <ul class="clean sim" id="sim"></ul>
+    <details style="margin-top:10px"><summary>¿Cómo se estima?</summary>
+      <p class="sub">Si hay oficio capturado: plazas de tu lista − voluntarios anotados. Si no, se usa el promedio histórico de obligados en ese festivo según el rol (o <b id="k-default"></b> si no hay historial). Edita el valor por defecto en Ajustes.</p>
+    </details>
+  </div>
+
+  <div class="card">
+    <h2>Las reglas del juego</h2>
+    <ul class="clean block" style="font-size:14px">
+      <li>Si vas <b>1.º o 2.º en la fila</b>, no te apuntes de voluntario: déjate obligar en una fecha aceptable y quedas protegido toda la vuelta.</li>
+      <li>Si vas <b>lejos</b>, ser voluntario no mueve tu lugar: apúntate solo cuando te convenga el día.</li>
+      <li>Si tu plaza cae en una fecha que quieres evitar, el único escudo real es <b>vacaciones o curso</b> ese día.</li>
+      <li>Rechazar cuesta una semana de productividad y te lo cobran en la siguiente: <b>nunca</b> rechaces.</li>
+      <li>Voluntarios hasta <b>3 días antes</b>. Apunta oficios en cuanto salgan.</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ============ ROL ============ -->
+<section id="view-rol" class="view">
+  <div class="card">
+    <h2>Rol de guardias</h2>
+    <p class="sub">Del más antiguo (arriba) al más nuevo (abajo). Toca una celda para capturar. El puntero sube de abajo hacia arriba.</p>
+    <div class="tablewrap"><table id="rol"></table></div>
+    <div class="legend"><span>O = obligado</span><span style="color:var(--accent)">V = vacaciones</span><span style="color:var(--warn)">C = curso</span><span style="color:var(--danger)">I = incapacidad</span><span>▢ azul = siguiente en la fila</span></div>
+    <div class="actions">
+      <button class="small" id="btn-add-round">+ Nueva vuelta</button>
+      <button class="small" id="btn-add-person">+ Persona</button>
+    </div>
+  </div>
+  <div class="card">
+    <h2>Personas</h2>
+    <ul class="clean" id="people"></ul>
+  </div>
+</section>
+
+<!-- ============ OFICIOS ============ -->
+<section id="view-oficios" class="view">
+  <div class="card">
+    <h2>Oficios de tiempo extra</h2>
+    <p class="sub">Captura cada oficio en cuanto lo publiquen: cuántas plazas salen de <b>tu lista</b> y cuántos voluntarios ya hay. La fecha límite para apuntarse es 3 días antes.</p>
+    <div class="actions"><button class="primary" id="btn-add-oficio">+ Capturar oficio</button></div>
+    <ul class="clean" id="oficios"></ul>
+  </div>
+</section>
+
+<!-- ============ VACACIONES ============ -->
+<section id="view-vac" class="view">
+  <div class="card">
+    <h2>Vacaciones y cursos</h2>
+    <p class="sub">Periodos conocidos de cada persona. Si el puntero llega a alguien que está de vacaciones, su plaza se quema sola y tú te acercas una posición.</p>
+    <div class="actions"><button class="primary" id="btn-add-vac">+ Agregar periodo</button></div>
+    <ul class="clean" id="vacs"></ul>
+  </div>
+</section>
+
+<!-- ============ AJUSTES ============ -->
+<section id="view-ajustes" class="view">
+  <div class="card">
+    <h2>Yo</h2>
+    <label>Soy</label>
+    <select id="cfg-me"></select>
+  </div>
+  <div class="card">
+    <h2>Fechas que quiero evitar</h2>
+    <p class="sub">Toca para marcar. También puedes agregar fechas sueltas.</p>
+    <div class="chips" id="avoid-chips"></div>
+    <div class="row" style="margin-top:10px">
+      <input type="date" id="avoid-date" class="grow">
+      <button id="btn-avoid-add">Agregar fecha</button>
+    </div>
+    <ul class="clean" id="avoid-custom"></ul>
+  </div>
+  <div class="card">
+    <h2>Estimación</h2>
+    <label>Obligados por defecto cuando no hay historial ni oficio</label>
+    <input type="number" id="cfg-default" min="0" max="20" step="1">
+    <label>Plazas forzadas desde las que la app te considera "en zona caliente"</label>
+    <input type="number" id="cfg-hot" min="0" max="10" step="1">
+  </div>
+  <div class="card">
+    <h2>Datos</h2>
+    <p class="sub">Todo se guarda solo en este navegador. Exporta un respaldo de vez en cuando.</p>
+    <div class="actions">
+      <button id="btn-export">Exportar JSON</button>
+      <button id="btn-import">Importar JSON</button>
+      <input type="file" id="file-import" accept="application/json" style="display:none">
+      <button class="danger" id="btn-reset">Restaurar datos de ejemplo</button>
+    </div>
+  </div>
+</section>
+</main>
+
+<nav class="tabs">
+  <button data-view="panel" class="active"><span class="ic">◉</span>Panel</button>
+  <button data-view="rol"><span class="ic">▦</span>Rol</button>
+  <button data-view="oficios"><span class="ic">▤</span>Oficios</button>
+  <button data-view="vac"><span class="ic">☼</span>Vacaciones</button>
+  <button data-view="ajustes"><span class="ic">⚙</span>Ajustes</button>
+</nav>
+
+<dialog id="dlg"><div class="inner" id="dlg-inner"></div></dialog>
+
+<script>
+/* ============================================================
+   Modelo de datos (localStorage)
+   people:  [{id,name,active}]  ordenados por antigüedad (0 = más antiguo)
+   rounds:  número de vueltas
+   entries: {"personId|round": {t:'O'|'V'|'C'|'I', d:'YYYY-MM-DD'|null}}
+   oficios: [{id,date,slots,vols,note}]  slots/vols = de MI lista
+   vacs:    [{id,personId,from,to,type:'V'|'C'}]
+   cfg:     {me, avoidKeys:[holidayKey], avoidDates:[YYYY-MM-DD], defaultForced, hot}
+   ============================================================ */
+const KEY='tiempo-extra-v1';
+const uid=()=>Math.random().toString(36).slice(2,9);
+
+function seed(){
+  const names=['Nicolás Guzmán','Julio Buenrostro','Gilberto Moreno','Zacarías Sánchez','Erick Prado','Noel Silva','Felipe Hernández','Gamaliel Mata','Jorge Anzures','Yemil Avilés'];
+  const people=names.map((n,i)=>({id:'p'+i,name:n,active:!(i===3||i===8)}));
+  // transcripción del rol (fotografía). Cada fila = persona, cada columna = vuelta.
+  const O=d=>({t:'O',d}),V={t:'V',d:null},I={t:'I',d:null};
+  const grid=[
+   /*Nicolás */ [V, O('2025-05-10'), O('2025-09-15'), O('2025-12-12'), O('2026-03-16'), V, O('2026-05-01'), O('2026-05-05'), O('2026-10-12'), null],
+   /*Julio   */ [V, O('2025-05-06'), O('2025-08-01'), O('2025-11-17'), O('2026-03-16'), I, I, I, V, null],
+   /*Gilberto*/ [O('2025-03-17'), O('2025-05-01'), V, O('2025-11-02'), O('2026-02-02'), O('2026-04-03'), O('2026-05-01'), V, O('2026-09-16'), null],
+   /*Zacarías*/ [V, O('2025-05-01'), O('2025-06-21'), O('2025-11-17'), V, O('2026-03-18'), O('2026-05-01'), O('2026-05-05'), null, null],
+   /*Erick   */ [O('2025-03-17'), O('2025-05-01'), O('2025-08-01'), O('2025-11-21'), O('2026-03-16'), O('2026-03-18'), O('2026-05-01'), O('2026-05-05'), O('2026-09-15'), null],
+   /*Noel    */ [O('2025-02-03'), O('2025-04-19'), O('2025-06-01'), O('2025-10-12'), O('2026-02-02'), V, V, V, V, O('2026-11-02')],
+   /*Felipe  */ [O('2025-02-03'), O('2025-04-18'), O('2025-06-01'), O('2025-10-12'), O('2025-12-25'), O('2026-04-03'), O('2026-04-04'), O('2026-05-05'), O('2026-08-01'), O('2026-11-02')],
+   /*Gamaliel*/ [O('2025-02-03'), O('2025-04-19'), O('2025-05-05'), V, O('2026-03-16'), O('2026-04-02'), O('2026-04-04'), O('2026-05-05'), O('2026-05-10'), null],
+   /*Jorge   */ [O('2025-02-03'), O('2025-04-18'), O('2025-05-10'), O('2025-09-16'), O('2025-12-25'), O('2026-04-02'), O('2026-04-03'), O('2026-05-05'), O('2026-05-10'), null],
+   /*Yemil   */ [O('2025-02-03'), O('2025-04-18'), O('2025-05-05'), O('2025-09-16'), O('2025-12-12'), O('2026-03-18'), O('2026-04-03'), O('2026-05-05'), O('2026-05-05'), O('2026-10-12')],
+  ];
+  const entries={};
+  grid.forEach((row,pi)=>row.forEach((c,ri)=>{ if(c) entries[people[pi].id+'|'+(ri+1)]=c; }));
+  return {
+    people, rounds:10, entries,
+    oficios:[{id:uid(),date:'2026-11-16',slots:2,vols:0,note:'Oficio Nims-009 (13-oct-26): 2 turnos × 4 plazas por centro'}],
+    vacs:[],
+    cfg:{me:'p5',avoidKeys:['navidad','anionuevo'],avoidDates:[],defaultForced:2,hot:2}
+  };
+}
+let S=load();
+function load(){ try{const r=localStorage.getItem(KEY); if(r) return JSON.parse(r);}catch(e){} return seed(); }
+function save(){ try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){} render(); }
+
+/* ================= Fechas ================= */
+const pad=n=>String(n).padStart(2,'0');
+const iso=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+const parse=s=>{const [y,m,d]=s.split('-').map(Number);return new Date(y,m-1,d);};
+const today=()=>{const d=new Date();d.setHours(0,0,0,0);return d;};
+const addDays=(d,n)=>{const x=new Date(d);x.setDate(x.getDate()+n);return x;};
+const DIAS=['dom','lun','mar','mié','jue','vie','sáb'];
+const MESES=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+const fmt=s=>{if(!s)return '';const d=parse(s);return `${DIAS[d.getDay()]} ${d.getDate()}-${MESES[d.getMonth()]}-${String(d.getFullYear()).slice(2)}`;};
+const fmtShort=s=>{if(!s)return '';const d=parse(s);return `${d.getDate()}/${MESES[d.getMonth()]}/${String(d.getFullYear()).slice(2)}`;};
+function easter(y){const a=y%19,b=Math.floor(y/100),c=y%100,d=Math.floor(b/4),e=b%4,f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3),h=(19*a+b-d-g+15)%30,i=Math.floor(c/4),k=c%4,l=(32+2*e+2*i-h-k)%7,m=Math.floor((a+11*h+22*l)/451),mo=Math.floor((h+l-7*m+114)/31),da=((h+l-7*m+114)%31)+1;return new Date(y,mo-1,da);}
+function nthMonday(y,m,n){const d=new Date(y,m,1);const off=(8-d.getDay())%7;d.setDate(1+off+7*(n-1));return d;}
+
+/* Festivos: key estable para aprender popularidad y marcar "evitar" */
+const HOLIDAYS=[
+  {key:'anionuevo',name:'Año Nuevo',f:y=>new Date(y,0,1)},
+  {key:'constitucion',name:'Constitución (1er lun feb)',f:y=>nthMonday(y,1,1)},
+  {key:'juarez',name:'Benito Juárez (3er lun mar)',f:y=>nthMonday(y,2,3)},
+  {key:'expropiacion',name:'Expropiación petrolera',f:y=>new Date(y,2,18)},
+  {key:'juevessanto',name:'Jueves Santo',f:y=>addDays(easter(y),-3)},
+  {key:'viernessanto',name:'Viernes Santo',f:y=>addDays(easter(y),-2)},
+  {key:'sabadogloria',name:'Sábado de Gloria',f:y=>addDays(easter(y),-1)},
+  {key:'trabajo',name:'Día del Trabajo',f:y=>new Date(y,4,1)},
+  {key:'puebla',name:'5 de mayo',f:y=>new Date(y,4,5)},
+  {key:'madres',name:'Día de las Madres',f:y=>new Date(y,4,10)},
+  {key:'marina',name:'1 de junio',f:y=>new Date(y,5,1)},
+  {key:'agosto',name:'1 de agosto',f:y=>new Date(y,7,1)},
+  {key:'grito',name:'15 de septiembre',f:y=>new Date(y,8,15)},
+  {key:'independencia',name:'Independencia',f:y=>new Date(y,8,16)},
+  {key:'raza',name:'12 de octubre',f:y=>new Date(y,9,12)},
+  {key:'muertos',name:'Día de Muertos',f:y=>new Date(y,10,2)},
+  {key:'revolucion',name:'Revolución (3er lun nov)',f:y=>nthMonday(y,10,3)},
+  {key:'guadalupe',name:'12 de diciembre',f:y=>new Date(y,11,12)},
+  {key:'navidad',name:'Navidad',f:y=>new Date(y,11,25)},
+];
+function holidayOn(dateStr){const y=parse(dateStr).getFullYear();for(const h of HOLIDAYS){if(iso(h.f(y))===dateStr)return h;}return null;}
+function upcomingHolidays(from,months){const out=[];for(const y of [from.getFullYear(),from.getFullYear()+1]){for(const h of HOLIDAYS){const d=h.f(y);if(d>=from&&d<=addDays(from,months*30.5))out.push({date:iso(d),h});}}return out.sort((a,b)=>a.date<b.date?-1:1);}
+
+/* ================= Lógica del puntero ================= */
+const me=()=>S.people.find(p=>p.id===S.cfg.me);
+const entry=(pid,r)=>S.entries[pid+'|'+r]||null;
+const activePeople=()=>S.people.filter(p=>p.active);
+const bottomUp=()=>activePeople().slice().reverse();  // más nuevo primero
+
+function currentRound(){
+  // la vuelta más alta que tenga al menos una captura; si todas las vueltas están completas, la siguiente.
+  let r=1;
+  for(let i=S.rounds;i>=1;i--){ if(activePeople().some(p=>entry(p.id,i))){r=i;break;} }
+  if(activePeople().every(p=>entry(p.id,r))) r++;
+  return r;
+}
+function pendingInRound(r){ return bottomUp().filter(p=>!entry(p.id,r)); }
+/* cola de personas en el orden en que el puntero las alcanzará (con su vuelta) */
+function queue(maxLen=40){
+  const out=[]; let r=currentRound();
+  out.push(...pendingInRound(r).map(p=>({p,r})));
+  while(out.length<maxLen){ r++; out.push(...bottomUp().map(p=>({p,r}))); }
+  return out.slice(0,maxLen);
+}
+function onLeave(pid,dateStr){ return S.vacs.find(v=>v.personId===pid&&v.from<=dateStr&&v.to>=dateStr)||null; }
+
+/* promedio histórico de obligados por festivo (desde el rol) */
+function forcedHistory(){
+  const byDate={};
+  for(const k in S.entries){const e=S.entries[k]; if(e.t==='O'&&e.d) byDate[e.d]=(byDate[e.d]||0)+1;}
+  const byKey={};
+  for(const d in byDate){const h=holidayOn(d); if(h){(byKey[h.key]=byKey[h.key]||[]).push(byDate[d]);}}
+  const avg={}; for(const k in byKey) avg[k]=byKey[k].reduce((a,b)=>a+b,0)/byKey[k].length;
+  return {byDate,avg};
+}
+
+/* lista de fechas futuras a simular: oficios + festivos sin oficio */
+function upcomingDates(){
+  const t=iso(today()); const map={};
+  for(const o of S.oficios){ if(o.date>=t) map[o.date]={date:o.date,oficio:o,h:holidayOn(o.date)}; }
+  for(const x of upcomingHolidays(today(),12)){ if(!map[x.date]) map[x.date]={date:x.date,oficio:null,h:x.h}; }
+  return Object.values(map).sort((a,b)=>a.date<b.date?-1:1);
+}
+function estimateForced(item,hist){
+  if(item.oficio) return {n:Math.max(0,(item.oficio.slots|0)-(item.oficio.vols|0)),src:'oficio'};
+  if(item.h&&hist.avg[item.h.key]!=null) return {n:Math.round(hist.avg[item.h.key]),src:'historial'};
+  return {n:S.cfg.defaultForced|0,src:'defecto'};
+}
+function isAvoid(dateStr){ const h=holidayOn(dateStr); return S.cfg.avoidDates.includes(dateStr)||(h&&S.cfg.avoidKeys.includes(h.key)); }
+
+/* simulación: consume la cola fecha por fecha */
+function simulate(){
+  const hist=forcedHistory(); const q=queue(60); let qi=0;
+  const steps=[]; let myHit=null; let slotsBeforeMe=0; let meSeen=false;
+  for(const item of upcomingDates()){
+    const est=estimateForced(item,hist); let n=est.n; const forced=[],skipped=[];
+    while(n>0&&qi<q.length){
+      const {p,r}=q[qi++];
+      const lv=onLeave(p.id,item.date);
+      if(lv){ skipped.push({p,lv}); if(p.id===S.cfg.me&&!meSeen){meSeen=true;myHit={date:item.date,leave:lv};} continue; }
+      forced.push(p); n--;
+      if(p.id===S.cfg.me){ if(!meSeen){meSeen=true;myHit={date:item.date,leave:null};} }
+      else if(!meSeen) slotsBeforeMe++;
+    }
+    steps.push({...item,est,forced,skipped});
+  }
+  // plazas reales por delante (sin contar vacaciones) según la cola, independiente de fechas
+  let ahead=0; for(const x of q){ if(x.p.id===S.cfg.me) break; ahead++; }
+  return {steps,myHit,ahead,slotsBeforeMe,q};
+}
+
+/* ================= Render ================= */
+function render(){ renderPanel(); renderRol(); renderPeople(); renderOficios(); renderVacs(); renderAjustes(); }
+
+function renderPanel(){
+  const m=me(); document.getElementById('hdr-sub').textContent=m?`Rol de guardias · ${m.name}`:'Rol de guardias';
+  const sim=simulate();
+  document.getElementById('k-default').textContent=S.cfg.defaultForced;
+  document.getElementById('k-round').textContent=currentRound();
+  document.getElementById('k-slots').textContent=sim.ahead;
+  document.getElementById('k-date').textContent=sim.myHit?fmtShort(sim.myHit.date):'> 12 meses';
+  const A=document.getElementById('panel-alerts'); A.innerHTML='';
+  const alert=(cls,title,body)=>{const d=document.createElement('div');d.className='alert '+cls;d.innerHTML=`<b>${title}</b>${body}`;A.appendChild(d);};
+  if(!m){alert('warn','Elige quién eres','En Ajustes, selecciona tu nombre.');return;}
+  const hot=sim.ahead<=(S.cfg.hot|0);
+  if(sim.myHit){
+    const h=holidayOn(sim.myHit.date); const nm=h?` (${h.name})`:'';
+    if(sim.myHit.leave){
+      alert('ok','Te salvan tus vacaciones/curso',`El puntero te alcanzaría el <b>${fmt(sim.myHit.date)}</b>${nm}, pero estarás fuera: te anotan y la vuelta se quema sin trabajar.`);
+    } else if(isAvoid(sim.myHit.date)){
+      alert('danger',`Riesgo: te tocaría el ${fmt(sim.myHit.date)}${nm}`,
+        `Es una fecha que quieres evitar. Opciones: <br>• Pide <b>vacaciones o curso</b> que cubran ese día.<br>• Si una fecha anterior aceptable se queda con huecos, <b>no te apuntes de voluntario</b>: déjate obligar ahí y llegas protegido.<br>• Si esa fecha se llena de voluntarios, el puntero no se mueve y el riesgo se pospone: revisa la app cuando salga el oficio.`);
+    } else {
+      alert('info',`Te tocaría aprox. el ${fmt(sim.myHit.date)}${nm}`,`Fecha aceptable según tu configuración. Si te conviene, <b>no te apuntes de voluntario</b> ese día ni los anteriores: deja que te obliguen y quedas protegido toda la vuelta.`);
+    }
+  } else {
+    alert('ok','Sin riesgo en los próximos 12 meses','Al ritmo estimado el puntero no te alcanza. Puedes ofrecerte de voluntario cuando quieras.');
+  }
+  if(hot) alert('warn',`Zona caliente: ${sim.ahead} plaza${sim.ahead===1?'':'s'} por delante`,'Cualquier hueco sin voluntarios puede ser el tuyo. <b>No te apuntes de voluntario</b>: trabajarías igual sin quemar la vuelta.');
+  else alert('info',`Lejos del puntero: ${sim.ahead} plazas por delante`,'Ser voluntario no mueve tu lugar en la fila. Apúntate solo en los días que te convengan.');
+  // fechas límite de oficios
+  const t=today();
+  for(const o of S.oficios.filter(o=>o.date>=iso(t)).sort((a,b)=>a.date<b.date?-1:1)){
+    const dl=addDays(parse(o.date),-3); const days=Math.round((dl-t)/864e5);
+    const left=Math.max(0,(o.slots|0)-(o.vols|0));
+    if(days>=0) alert(days<=2?'warn':'info',`Oficio ${fmt(o.date)}: voluntarios hasta ${fmt(iso(dl))} (${days===0?'hoy':days+' días'})`,`${left} plaza${left===1?'':'s'} de tu lista sin voluntario${left===1?'':'s'}.`);
+  }
+  // cola
+  const Q=document.getElementById('queue'); Q.innerHTML='';
+  sim.q.slice(0,12).forEach((x,i)=>{
+    const li=document.createElement('li'); const isMe=x.p.id===S.cfg.me;
+    li.innerHTML=`<span>${i+1}. ${isMe?'<b>'+x.p.name+' (tú)</b>':x.p.name} <span class="muted">· vuelta ${x.r}</span></span>${isMe?'<span class="badge info">tú</span>':''}`;
+    if(isMe) li.style.background='var(--me)';
+    Q.appendChild(li);
+  });
+  // simulación
+  const L=document.getElementById('sim'); L.innerHTML='';
+  for(const s of sim.steps.slice(0,14)){
+    const li=document.createElement('li');
+    const who=s.forced.map(p=>p.id===S.cfg.me?`<b>${p.name}</b>`:p.name).join(', ')||'<span class="muted">nadie</span>';
+    const sk=s.skipped.length?`<div class="muted">Se saltan (fuera): ${s.skipped.map(x=>x.p.name).join(', ')}</div>`:'';
+    const tag=isAvoid(s.date)?'<span class="badge danger">evitar</span>':'';
+    const src=s.oficio?`oficio: ${s.oficio.slots} plazas − ${s.oficio.vols} vol.`:(s.est.src==='historial'?'promedio histórico':'por defecto');
+    li.innerHTML=`<div class="d">${fmt(s.date)} ${s.h?'· '+s.h.name:''} ${tag}</div><div>${s.est.n} obligado${s.est.n===1?'':'s'} <span class="muted">(${src})</span> → ${who}</div>${sk}`;
+    if(s.forced.some(p=>p.id===S.cfg.me)) li.style.background='var(--me)';
+    L.appendChild(li);
+  }
+}
+
+function renderRol(){
+  const T=document.getElementById('rol'); const cr=currentRound();
+  const q=queue(1); const nextP=q[0]?q[0].p.id:null; const nextR=q[0]?q[0].r:null;
+  let h='<tr><th style="text-align:left">Nombre</th>';
+  for(let r=1;r<=S.rounds;r++) h+=`<th>V${r}</th>`;
+  h+='</tr>';
+  for(const p of S.people){
+    h+=`<tr class="${p.id===S.cfg.me?'me':''} ${p.active?'':'inactive'}"><td class="name">${p.name}</td>`;
+    for(let r=1;r<=S.rounds;r++){
+      const e=entry(p.id,r); const ptr=(p.id===nextP&&r===nextR&&p.active)?' pointer':'';
+      if(e) h+=`<td class="cell ${e.t}${ptr}" data-p="${p.id}" data-r="${r}">${e.t==='O'?fmtShort(e.d):(e.t==='V'?'VAC':e.t==='C'?'CURSO':'INCAP')}</td>`;
+      else h+=`<td class="cell empty${ptr}" data-p="${p.id}" data-r="${r}">·</td>`;
+    }
+    h+='</tr>';
+  }
+  T.innerHTML=h;
+  T.querySelectorAll('td.cell').forEach(td=>td.onclick=()=>editCell(td.dataset.p,+td.dataset.r));
+}
+
+function renderPeople(){
+  const U=document.getElementById('people'); U.innerHTML='';
+  S.people.forEach((p,i)=>{
+    const li=document.createElement('li');
+    li.innerHTML=`<span>${i+1}. ${p.name} ${p.id===S.cfg.me?'<span class="badge info">tú</span>':''} ${p.active?'':'<span class="badge warn">baja</span>'}</span>
+      <span class="row">
+        <button class="small" data-a="up">↑</button><button class="small" data-a="down">↓</button>
+        <button class="small" data-a="tog">${p.active?'Dar de baja':'Reactivar'}</button>
+        <button class="small" data-a="ren">Renombrar</button>
+        <button class="small danger" data-a="del">✕</button>
+      </span>`;
+    li.querySelectorAll('button').forEach(b=>b.onclick=()=>{
+      const a=b.dataset.a;
+      if(a==='up'&&i>0){[S.people[i-1],S.people[i]]=[S.people[i],S.people[i-1]];}
+      if(a==='down'&&i<S.people.length-1){[S.people[i+1],S.people[i]]=[S.people[i],S.people[i+1]];}
+      if(a==='tog') p.active=!p.active;
+      if(a==='ren'){const n=prompt('Nombre',p.name); if(n) p.name=n.trim();}
+      if(a==='del'){ if(confirm(`¿Eliminar a ${p.name} y sus registros?`)){ S.people.splice(i,1); for(const k in S.entries) if(k.startsWith(p.id+'|')) delete S.entries[k]; S.vacs=S.vacs.filter(v=>v.personId!==p.id); if(S.cfg.me===p.id) S.cfg.me=null; } }
+      save();
+    });
+    U.appendChild(li);
+  });
+}
+
+function renderOficios(){
+  const U=document.getElementById('oficios'); U.innerHTML='';
+  const t=iso(today());
+  const list=S.oficios.slice().sort((a,b)=>a.date<b.date?-1:1);
+  if(!list.length){U.innerHTML='<li class="muted">Sin oficios capturados.</li>';return;}
+  for(const o of list){
+    const li=document.createElement('li'); const past=o.date<t; const dl=iso(addDays(parse(o.date),-3));
+    const h=holidayOn(o.date); const left=Math.max(0,(o.slots|0)-(o.vols|0));
+    li.innerHTML=`<div class="grow"><div><b>${fmt(o.date)}</b> ${h?'· '+h.name:''} ${past?'<span class="badge">pasado</span>':''} ${isAvoid(o.date)?'<span class="badge danger">evitar</span>':''}</div>
+      <div class="sub">${o.slots} plazas de mi lista · ${o.vols} voluntarios · <b>${left} sin cubrir</b> · límite ${fmt(dl)}</div>
+      ${o.note?`<div class="sub">${o.note}</div>`:''}</div>
+      <span class="row"><button class="small" data-a="edit">Editar</button><button class="small danger" data-a="del">✕</button></span>`;
+    li.querySelector('[data-a=edit]').onclick=()=>editOficio(o);
+    li.querySelector('[data-a=del]').onclick=()=>{ if(confirm('¿Eliminar oficio?')){S.oficios=S.oficios.filter(x=>x.id!==o.id);save();} };
+    U.appendChild(li);
+  }
+}
+
+function renderVacs(){
+  const U=document.getElementById('vacs'); U.innerHTML='';
+  const list=S.vacs.slice().sort((a,b)=>a.from<b.from?-1:1);
+  if(!list.length){U.innerHTML='<li class="muted">Sin periodos capturados. Agrega las vacaciones conocidas de cada compañero.</li>';return;}
+  for(const v of list){
+    const p=S.people.find(x=>x.id===v.personId); const li=document.createElement('li');
+    li.innerHTML=`<div class="grow"><b>${p?p.name:'?'}</b> <span class="badge ${v.type==='C'?'warn':'info'}">${v.type==='C'?'curso':'vacaciones'}</span><div class="sub">${fmt(v.from)} → ${fmt(v.to)}</div></div>
+      <span class="row"><button class="small" data-a="edit">Editar</button><button class="small danger" data-a="del">✕</button></span>`;
+    li.querySelector('[data-a=edit]').onclick=()=>editVac(v);
+    li.querySelector('[data-a=del]').onclick=()=>{S.vacs=S.vacs.filter(x=>x.id!==v.id);save();};
+    U.appendChild(li);
+  }
+}
+
+function renderAjustes(){
+  const sel=document.getElementById('cfg-me');
+  sel.innerHTML='<option value="">— elige —</option>'+S.people.map(p=>`<option value="${p.id}" ${p.id===S.cfg.me?'selected':''}>${p.name}</option>`).join('');
+  sel.onchange=()=>{S.cfg.me=sel.value||null;save();};
+  const C=document.getElementById('avoid-chips'); C.innerHTML='';
+  for(const h of HOLIDAYS){
+    const c=document.createElement('span'); c.className='chip'+(S.cfg.avoidKeys.includes(h.key)?' on':''); c.textContent=h.name;
+    c.onclick=()=>{ const i=S.cfg.avoidKeys.indexOf(h.key); if(i>=0)S.cfg.avoidKeys.splice(i,1); else S.cfg.avoidKeys.push(h.key); save(); };
+    C.appendChild(c);
+  }
+  const U=document.getElementById('avoid-custom'); U.innerHTML='';
+  for(const d of S.cfg.avoidDates.slice().sort()){
+    const li=document.createElement('li'); li.innerHTML=`<span>${fmt(d)}</span><button class="small danger">✕</button>`;
+    li.querySelector('button').onclick=()=>{S.cfg.avoidDates=S.cfg.avoidDates.filter(x=>x!==d);save();};
+    U.appendChild(li);
+  }
+  const df=document.getElementById('cfg-default'); df.value=S.cfg.defaultForced; df.onchange=()=>{S.cfg.defaultForced=Math.max(0,+df.value|0);save();};
+  const ht=document.getElementById('cfg-hot'); ht.value=S.cfg.hot; ht.onchange=()=>{S.cfg.hot=Math.max(0,+ht.value|0);save();};
+}
+
+/* ================= Diálogos ================= */
+const dlg=document.getElementById('dlg'), inner=document.getElementById('dlg-inner');
+function openDlg(html,onOpen){ inner.innerHTML=html; dlg.showModal(); if(onOpen) onOpen(); inner.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>dlg.close()); }
+
+function editCell(pid,r){
+  const p=S.people.find(x=>x.id===pid); const e=entry(pid,r)||{t:'O',d:''};
+  openDlg(`<h2>${p.name} · vuelta ${r}</h2>
+    <label>Tipo</label>
+    <select id="c-t"><option value="O">Obligado (trabajó)</option><option value="V">Vacaciones</option><option value="C">Curso</option><option value="I">Incapacidad</option></select>
+    <label>Fecha (para obligado)</label><input type="date" id="c-d" value="${e.d||''}">
+    <div class="actions"><button class="danger" id="c-clear">Vaciar</button><button data-close>Cancelar</button><button class="primary" id="c-ok">Guardar</button></div>`,()=>{
+    document.getElementById('c-t').value=e.t;
+    document.getElementById('c-clear').onclick=()=>{delete S.entries[pid+'|'+r];dlg.close();save();};
+    document.getElementById('c-ok').onclick=()=>{const t=document.getElementById('c-t').value;const d=document.getElementById('c-d').value||null; S.entries[pid+'|'+r]={t,d:t==='O'?d:(d||null)}; dlg.close(); save();};
+  });
+}
+
+function editOficio(o){
+  const isNew=!o; o=o||{id:uid(),date:'',slots:2,vols:0,note:''};
+  openDlg(`<h2>${isNew?'Capturar oficio':'Editar oficio'}</h2>
+    <label>Fecha del tiempo extra</label><input type="date" id="o-d" value="${o.date}">
+    <label>Plazas que salen de MI lista (todos los turnos)</label><input type="number" id="o-s" min="0" value="${o.slots}">
+    <label>Voluntarios de mi lista ya anotados</label><input type="number" id="o-v" min="0" value="${o.vols}">
+    <label>Nota (turnos, especialidades, iniciales…)</label><textarea id="o-n" rows="2">${o.note||''}</textarea>
+    <div class="actions"><button data-close>Cancelar</button><button class="primary" id="o-ok">Guardar</button></div>`,()=>{
+    document.getElementById('o-ok').onclick=()=>{
+      const d=document.getElementById('o-d').value; if(!d){alert('Falta la fecha');return;}
+      o.date=d;o.slots=+document.getElementById('o-s').value|0;o.vols=+document.getElementById('o-v').value|0;o.note=document.getElementById('o-n').value.trim();
+      if(isNew) S.oficios.push(o); dlg.close(); save();
+    };
+  });
+}
+
+function editVac(v){
+  const isNew=!v; v=v||{id:uid(),personId:S.cfg.me||S.people[0]?.id,from:'',to:'',type:'V'};
+  openDlg(`<h2>${isNew?'Agregar periodo':'Editar periodo'}</h2>
+    <label>Persona</label><select id="v-p">${S.people.map(p=>`<option value="${p.id}" ${p.id===v.personId?'selected':''}>${p.name}</option>`).join('')}</select>
+    <label>Tipo</label><select id="v-t"><option value="V" ${v.type==='V'?'selected':''}>Vacaciones</option><option value="C" ${v.type==='C'?'selected':''}>Curso</option></select>
+    <div class="row"><div class="grow"><label>Desde</label><input type="date" id="v-f" value="${v.from}"></div><div class="grow"><label>Hasta</label><input type="date" id="v-to" value="${v.to}"></div></div>
+    <div class="actions"><button data-close>Cancelar</button><button class="primary" id="v-ok">Guardar</button></div>`,()=>{
+    document.getElementById('v-ok').onclick=()=>{
+      const f=document.getElementById('v-f').value,t=document.getElementById('v-to').value||f; if(!f){alert('Falta la fecha');return;}
+      v.personId=document.getElementById('v-p').value;v.type=document.getElementById('v-t').value;v.from=f;v.to=t<f?f:t;
+      if(isNew) S.vacs.push(v); dlg.close(); save();
+    };
+  });
+}
+
+/* ================= Eventos ================= */
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.toggle('active',x===b));
+  document.querySelectorAll('.view').forEach(v=>v.classList.toggle('active',v.id==='view-'+b.dataset.view));
+  window.scrollTo(0,0);
+});
+document.getElementById('btn-add-round').onclick=()=>{S.rounds++;save();};
+document.getElementById('btn-add-person').onclick=()=>{const n=prompt('Nombre de la persona (se agrega al final, como el más nuevo)');if(n){S.people.push({id:uid(),name:n.trim(),active:true});save();}};
+document.getElementById('btn-add-oficio').onclick=()=>editOficio(null);
+document.getElementById('btn-add-vac').onclick=()=>editVac(null);
+document.getElementById('btn-avoid-add').onclick=()=>{const d=document.getElementById('avoid-date').value;if(d&&!S.cfg.avoidDates.includes(d)){S.cfg.avoidDates.push(d);save();}};
+document.getElementById('btn-export').onclick=()=>{const a=document.createElement('a');a.href='data:application/json;charset=utf-8,'+encodeURIComponent(JSON.stringify(S,null,2));a.download='tiempo-extra-'+iso(today())+'.json';a.click();};
+document.getElementById('btn-import').onclick=()=>document.getElementById('file-import').click();
+document.getElementById('file-import').onchange=e=>{const f=e.target.files[0];if(!f)return;const rd=new FileReader();rd.onload=()=>{try{const d=JSON.parse(rd.result);if(d.people&&d.entries){S=d;save();}else alert('Archivo no válido');}catch(err){alert('Archivo no válido');}};rd.readAsText(f);};
+document.getElementById('btn-reset').onclick=()=>{if(confirm('Se borrará todo y se cargará el rol de ejemplo. ¿Continuar?')){S=seed();save();}};
+
+render();
+</script>
+</body>
+</html>
