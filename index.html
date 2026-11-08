@@ -136,7 +136,8 @@ details summary{cursor:pointer;color:var(--muted);font-size:14px}
     <h2>Plan de voluntario</h2>
     <p class="sub">Apuntarte no te quema la vuelta, pero ocupas una plaza que se habría forzado: el puntero avanza una menos ese día. Marca los días en que <b>sí</b> estarías dispuesto a trabajar y mira a dónde se mueve tu fecha de obligación en cada escenario.</p>
     <div class="tablewrap"><table id="plan"></table></div>
-    <p class="sub" id="plan-advice" style="margin-top:8px"></p>
+    <p class="sub" style="margin-top:6px">⚠ fecha a evitar · ◐ cae en tu descanso · ✓ te cubre vacaciones/curso</p>
+    <p class="sub" id="plan-advice" style="margin-top:4px"></p>
   </div>
 
   <div class="card">
@@ -211,6 +212,12 @@ details summary{cursor:pointer;color:var(--muted);font-size:14px}
     <h2>Yo</h2>
     <label>Soy</label>
     <select id="cfg-me"></select>
+  </div>
+  <div class="card">
+    <h2>Mis días de descanso</h2>
+    <p class="sub">Tu rol de descansos por periodo. Un festivo que caiga en tu descanso se marca en amarillo: te costaría un día libre.</p>
+    <ul class="clean" id="rest-list"></ul>
+    <div class="actions"><button class="primary" id="btn-add-rest">+ Agregar periodo</button></div>
   </div>
   <div class="card">
     <h2>Fechas que quiero evitar</h2>
@@ -297,7 +304,7 @@ function seed(){
     people, rounds:10, entries,
     oficios:[{id:uid(),date:'2026-11-16',am:2,pm:2,slots:4,vols:0,note:'Oficio Nims-009 (13-oct-26)'}],
     vacs:seedVacs(),
-    cfg:{me:'p5',avoidKeys:['navidad','anionuevo'],avoidDates:[],defaultForced:2,hot:2,slotsMin:4,slotsMax:5,defAm:2,defPm:2,scenario:'hist',plan:[]}
+    cfg:{me:'p5',avoidKeys:['navidad','anionuevo'],avoidDates:[],defaultForced:2,hot:2,slotsMin:4,slotsMax:5,defAm:2,defPm:2,scenario:'hist',plan:[],rest:[{id:'r1',from:'2026-01-01',to:'2027-01-31',days:[4,5]}]}
   };
 }
 /* Calendario de vacaciones 2026 (publicado dic-2025), solo integrantes de la lista.
@@ -319,7 +326,7 @@ function seedVacs(){
   ];
 }
 let S=load();
-function load(){ let d=null; try{const r=localStorage.getItem(KEY); if(r) d=JSON.parse(r);}catch(e){} if(!d) d=seed(); d.cfg.slotsMin??=4; d.cfg.slotsMax??=5; d.cfg.scenario??='hist'; d.cfg.plan??=[]; d.cfg.defAm??=2; d.cfg.defPm??=2; for(const o of d.oficios||[]){ if(o.am==null){o.pm=Math.min(2,o.slots|0); o.am=(o.slots|0)-o.pm;} } if(!d.cfg.vacsSeeded){ if(!d.vacs||!d.vacs.length) d.vacs=seedVacs(); d.cfg.vacsSeeded=true; } return d; }
+function load(){ let d=null; try{const r=localStorage.getItem(KEY); if(r) d=JSON.parse(r);}catch(e){} if(!d) d=seed(); d.cfg.slotsMin??=4; d.cfg.slotsMax??=5; d.cfg.scenario??='hist'; d.cfg.plan??=[]; d.cfg.rest??=[{id:'r1',from:'2026-01-01',to:'2027-01-31',days:[4,5]}]; d.cfg.defAm??=2; d.cfg.defPm??=2; for(const o of d.oficios||[]){ if(o.am==null){o.pm=Math.min(2,o.slots|0); o.am=(o.slots|0)-o.pm;} } if(!d.cfg.vacsSeeded){ if(!d.vacs||!d.vacs.length) d.vacs=seedVacs(); d.cfg.vacsSeeded=true; } return d; }
 function save(){ try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){} render(); }
 
 /* ================= Fechas ================= */
@@ -413,6 +420,7 @@ function estimateForced(item,hist,scenario){
   if(item.h&&hist.avg[item.h.key]!=null) return {n:Math.round(hist.avg[item.h.key]),src:'promedio histórico'};
   return {n:S.cfg.defaultForced|0,src:'por defecto'};
 }
+function isRest(dateStr){ const wd=parse(dateStr).getDay(); return (S.cfg.rest||[]).some(r=>r.from<=dateStr&&r.to>=dateStr&&r.days.includes(wd)); }
 function isAvoid(dateStr){ const h=holidayOn(dateStr); return S.cfg.avoidDates.includes(dateStr)||(h&&S.cfg.avoidKeys.includes(h.key)); }
 
 /* Reparto por turno: los voluntarios eligen primero (mañana); a los obligados les queda el resto. */
@@ -476,7 +484,10 @@ function renderPanel(){
     } else if(isAvoid(sim.myHit.date)){
       const sp=sim.myHit.split; const turno=sp.am?'mañana o tarde (quedan plazas de ambos turnos)':'<b>tarde 16:00–23:00</b> (los voluntarios se llevan la mañana)';
       alert('danger',`Riesgo: te tocaría el ${fmt(sim.myHit.date)}${nm}`,
-        `Es una fecha que quieres evitar, y el turno sería probablemente ${turno}. Opciones: <br>• Pide <b>vacaciones o curso</b> que cubran ese día.<br>• Si una fecha anterior aceptable se queda con huecos, <b>no te apuntes de voluntario</b>: déjate obligar ahí y llegas protegido.<br>• Si esa fecha se llena de voluntarios, el puntero no se mueve y el riesgo se pospone.<br>• Último recurso: si ya es seguro que te obligan ese día, apuntarte de voluntario <b>ese mismo día</b> te asegura la mañana (pero no quema tu vuelta).`);
+        `Es una fecha que quieres evitar${isRest(sim.myHit.date)?' <b>y además cae en tu descanso</b>':''}, y el turno sería probablemente ${turno}. Opciones: <br>• Pide <b>vacaciones o curso</b> que cubran ese día.<br>• Si una fecha anterior aceptable se queda con huecos, <b>no te apuntes de voluntario</b>: déjate obligar ahí y llegas protegido.<br>• Si esa fecha se llena de voluntarios, el puntero no se mueve y el riesgo se pospone.<br>• Último recurso: si ya es seguro que te obligan ese día, apuntarte de voluntario <b>ese mismo día</b> te asegura la mañana (pero no quema tu vuelta).`);
+    } else if(isRest(sim.myHit.date)){
+      const sp=sim.myHit.split; const turno=sp.am?'mañana o tarde':'tarde 16:00–23:00';
+      alert('warn',`Te tocaría el ${fmt(sim.myHit.date)}${nm}, que es tu día de descanso`,`Turno probable: <b>${turno}</b>. No es fecha tóxica, pero perderías un día libre. Si la fecha anterior aceptable se queda con huecos, <b>no te apuntes</b> ahí para que te obliguen antes; si prefieres no arriesgar, considera vacaciones/curso.`);
     } else {
       const sp=sim.myHit.split; const turno=sp.am?'mañana o tarde':'tarde 16:00–23:00';
       alert('info',`Te tocaría aprox. el ${fmt(sim.myHit.date)}${nm}`,`Fecha aceptable según tu configuración; turno probable: <b>${turno}</b>. Si te conviene, <b>no te apuntes de voluntario</b> ese día ni los anteriores: deja que te obliguen y quedas protegido toda la vuelta.`);
@@ -507,7 +518,7 @@ function renderPanel(){
     const li=document.createElement('li');
     const who=s.forced.map(p=>p.id===S.cfg.me?`<b>${p.name}</b>`:p.name).join(', ')||'<span class="muted">nadie</span>';
     const sk=s.skipped.length?`<div class="muted">Se saltan (fuera): ${s.skipped.map(x=>x.p.name).join(', ')}</div>`:'';
-    const tag=(isAvoid(s.date)?'<span class="badge danger">evitar</span>':'')+(s.vol?' <span class="badge ok">tú voluntario</span>':'');
+    const tag=(isAvoid(s.date)?'<span class="badge danger">evitar</span> ':'')+(isRest(s.date)?'<span class="badge warn">tu descanso</span> ':'')+(s.vol?'<span class="badge ok">tú voluntario</span>':'');
     const src=s.oficio?`oficio: ${s.oficio.slots} plazas − ${s.oficio.vols} vol.`:s.est.src;
     const sp=s.forced.length?` <span class="muted">· ${s.split.am?s.split.am+' mañana':''}${s.split.am&&s.split.pm?', ':''}${s.split.pm?s.split.pm+' tarde':''}</span>`:'';
     li.innerHTML=`<div class="d">${fmt(s.date)} ${s.h?'· '+s.h.name:''} ${tag}</div><div>${s.est.n} obligado${s.est.n===1?'':'s'} <span class="muted">(${src})</span> → ${who}${sp}</div>${sk}`;
@@ -521,7 +532,7 @@ function renderPlan(){
   const T=document.getElementById('plan'); const plan=S.cfg.plan||[];
   const dates=upcomingDates().slice(0,10);
   const res=(pl)=>['hist','min','max'].map(sc=>{const r=simulate(sc,pl);return r.myHit?(r.myHit.leave?{d:r.myHit.date,leave:true}:{d:r.myHit.date}):null;});
-  const cell=(x)=>{ if(!x) return '<td class="muted">&gt; 12 m</td>'; if(x.leave) return `<td style="color:var(--ok)">${fmtShort(x.d)} ✓</td>`; return `<td style="color:${isAvoid(x.d)?'var(--danger)':'inherit'}">${fmtShort(x.d)}${isAvoid(x.d)?' ⚠':''}</td>`; };
+  const cell=(x)=>{ if(!x) return '<td class="muted">&gt; 12 m</td>'; if(x.leave) return `<td style="color:var(--ok)">${fmtShort(x.d)} ✓</td>`; const a=isAvoid(x.d),r=isRest(x.d); return `<td style="color:${a?'var(--danger)':r?'var(--warn)':'inherit'}">${fmtShort(x.d)}${a?' ⚠':r?' ◐':''}</td>`; };
   const base=res(plan);
   let h='<tr><th></th><th style="text-align:left">Si me apunto el…</th><th>Histórico</th><th>Piden '+(S.cfg.slotsMin??4)+'</th><th>Piden '+(S.cfg.slotsMax??5)+'</th></tr>';
   h+=`<tr><td></td><td class="name" style="position:static">Plan actual (${plan.length?plan.length+' fecha'+(plan.length>1?'s':''):'ninguna'})</td>${base.map(cell).join('')}</tr>`;
@@ -529,16 +540,16 @@ function renderPlan(){
     const on=plan.includes(it.date);
     const trial=on?plan.filter(d=>d!==it.date):[...plan,it.date];
     const r=res(trial);
-    h+=`<tr><td><input type="checkbox" data-d="${it.date}" ${on?'checked':''}></td><td class="name" style="position:static;text-align:left">${fmt(it.date)}${it.h?' <span class="muted">'+it.h.name+'</span>':''}${isAvoid(it.date)?' <span class="badge danger">evitar</span>':''}</td>${r.map(cell).join('')}</tr>`;
+    h+=`<tr><td><input type="checkbox" data-d="${it.date}" ${on?'checked':''}></td><td class="name" style="position:static;text-align:left">${fmt(it.date)}${it.h?' <span class="muted">'+it.h.name+'</span>':''}${isAvoid(it.date)?' <span class="badge danger">evitar</span>':''}${isRest(it.date)?' <span class="badge warn">descanso</span>':''}</td>${r.map(cell).join('')}</tr>`;
   }
   T.innerHTML=h;
   T.querySelectorAll('input[type=checkbox]').forEach(cb=>cb.onchange=()=>{const d=cb.dataset.d; const i=S.cfg.plan.indexOf(d); if(cb.checked&&i<0)S.cfg.plan.push(d); if(!cb.checked&&i>=0)S.cfg.plan.splice(i,1); save();});
   // consejo: fechas (una sola) que sacan todos los escenarios de "evitar"
-  const bad=x=>x&&!x.leave&&isAvoid(x.d);
+  const bad=x=>x&&!x.leave&&(isAvoid(x.d)||isRest(x.d));
   const nowBad=base.filter(bad).length;
   const adv=document.getElementById('plan-advice');
-  if(!nowBad){ adv.innerHTML=plan.length?'Con tu plan actual, ningún escenario te deja en una fecha a evitar.':'Hoy ningún escenario te deja en una fecha a evitar.'; return; }
-  const good=dates.filter(it=>!plan.includes(it.date)&&!isAvoid(it.date)).map(it=>({it,n:res([...plan,it.date]).filter(bad).length})).filter(x=>x.n<nowBad).sort((a,b)=>a.n-b.n);
+  if(!nowBad){ adv.innerHTML=plan.length?'Con tu plan actual, ningún escenario te deja en una fecha a evitar ni en tu descanso.':'Hoy ningún escenario te deja en una fecha a evitar ni en tu descanso.'; return; }
+  const good=dates.filter(it=>!plan.includes(it.date)&&!isAvoid(it.date)&&!isRest(it.date)).map(it=>({it,n:res([...plan,it.date]).filter(bad).length})).filter(x=>x.n<nowBad).sort((a,b)=>a.n-b.n);
   if(good.length){ adv.innerHTML=`<b>Sugerencia:</b> apuntarte el <b>${good.map(x=>fmt(x.it.date)+(x.n===0?' (limpia todos los escenarios)':' (quedan '+x.n+' escenario'+(x.n>1?'s':'')+' malos)')).join('</b> o el <b>')}</b> mejora tu situación. Recuerda: solo cuenta si ese día realmente había plazas sin cubrir.`; }
   else adv.innerHTML='Ninguna fecha suelta te saca del riesgo por sí sola. Prueba combinaciones marcando varias, o ten lista la opción de vacaciones/curso para la fecha tóxica.';
 }
@@ -618,7 +629,37 @@ function renderVacs(){
   }
 }
 
+const DIAS_L=['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+function renderRest(){
+  const U=document.getElementById('rest-list'); U.innerHTML='';
+  const list=(S.cfg.rest||[]).slice().sort((a,b)=>a.from<b.from?-1:1);
+  if(!list.length){U.innerHTML='<li class="muted">Sin periodos. Agrega tus días de descanso actuales.</li>';return;}
+  for(const r of list){
+    const li=document.createElement('li');
+    li.innerHTML=`<div class="grow"><b>${r.days.slice().sort().map(d=>DIAS_L[d]).join(' y ')}</b><div class="sub">${fmt(r.from)} → ${fmt(r.to)}</div></div>
+      <span class="row"><button class="small" data-a="edit">Editar</button><button class="small danger" data-a="del">✕</button></span>`;
+    li.querySelector('[data-a=edit]').onclick=()=>editRest(r);
+    li.querySelector('[data-a=del]').onclick=()=>{S.cfg.rest=S.cfg.rest.filter(x=>x.id!==r.id);save();};
+    U.appendChild(li);
+  }
+}
+function editRest(r){
+  const isNew=!r; r=r||{id:uid(),from:'',to:'',days:[]};
+  openDlg(`<h2>${isNew?'Agregar periodo de descanso':'Editar periodo'}</h2>
+    <div class="row"><div class="grow"><label>Desde</label><input type="date" id="r-f" value="${r.from}"></div><div class="grow"><label>Hasta</label><input type="date" id="r-t" value="${r.to}"></div></div>
+    <label>Días de descanso</label>
+    <div class="chips">${DIAS_L.map((n,i)=>`<span class="chip ${r.days.includes(i)?'on':''}" data-d="${i}">${n}</span>`).join('')}</div>
+    <div class="actions"><button data-close>Cancelar</button><button class="primary" id="r-ok">Guardar</button></div>`,()=>{
+    inner.querySelectorAll('.chip').forEach(c=>c.onclick=()=>c.classList.toggle('on'));
+    document.getElementById('r-ok').onclick=()=>{
+      const f=document.getElementById('r-f').value,t=document.getElementById('r-t').value; if(!f||!t){alert('Faltan fechas');return;}
+      const days=[...inner.querySelectorAll('.chip.on')].map(c=>+c.dataset.d); if(!days.length){alert('Elige al menos un día');return;}
+      r.from=f;r.to=t<f?f:t;r.days=days; if(isNew) S.cfg.rest.push(r); dlg.close(); save();
+    };
+  });
+}
 function renderAjustes(){
+  renderRest();
   const sel=document.getElementById('cfg-me');
   sel.innerHTML='<option value="">— elige —</option>'+S.people.map(p=>`<option value="${p.id}" ${p.id===S.cfg.me?'selected':''}>${p.name}</option>`).join('');
   sel.onchange=()=>{S.cfg.me=sel.value||null;save();};
@@ -701,6 +742,7 @@ document.getElementById('scenario').onchange=e=>{S.cfg.scenario=e.target.value;s
 document.getElementById('btn-add-person').onclick=()=>{const n=prompt('Nombre de la persona (se agrega al final, como el más nuevo)');if(n){S.people.push({id:uid(),name:n.trim(),active:true});save();}};
 document.getElementById('btn-add-oficio').onclick=()=>editOficio(null);
 document.getElementById('btn-add-vac').onclick=()=>editVac(null);
+document.getElementById('btn-add-rest').onclick=()=>editRest(null);
 document.getElementById('btn-avoid-add').onclick=()=>{const d=document.getElementById('avoid-date').value;if(d&&!S.cfg.avoidDates.includes(d)){S.cfg.avoidDates.push(d);save();}};
 document.getElementById('btn-export').onclick=()=>{const a=document.createElement('a');a.href='data:application/json;charset=utf-8,'+encodeURIComponent(JSON.stringify(S,null,2));a.download='tiempo-extra-'+iso(today())+'.json';a.click();};
 document.getElementById('btn-import').onclick=()=>document.getElementById('file-import').click();
