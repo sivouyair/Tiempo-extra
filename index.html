@@ -62,7 +62,7 @@ button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
 button.danger{color:var(--danger);border-color:var(--danger)}
 button.small{padding:6px 10px;font-size:13px}
 .tabs{position:fixed;bottom:0;left:0;right:0;background:var(--card);border-top:1px solid var(--line);display:flex;justify-content:space-around;padding:6px 4px calc(6px + env(safe-area-inset-bottom))}
-.tabs button{flex:1;border:none;background:none;color:var(--muted);font-size:12px;padding:6px 2px;display:flex;flex-direction:column;align-items:center;gap:2px}
+.tabs button{flex:1;border:none;background:none;color:var(--muted);font-size:11px;padding:6px 2px;display:flex;flex-direction:column;align-items:center;gap:2px}
 .tabs button span.ic{font-size:20px}
 .tabs button.active{color:var(--accent);font-weight:600}
 .view{display:none}.view.active{display:block}
@@ -164,6 +164,7 @@ details summary{cursor:pointer;color:var(--muted);font-size:14px}
       <li>Rechazar cuesta una semana de productividad y te lo cobran en la siguiente: <b>nunca</b> rechaces.</li>
       <li>Voluntarios hasta <b>3 días antes</b>. Apunta oficios en cuanto salgan.</li>
       <li>Sábados y domingos solo hay turno de <b>mañana</b>: piden 2 (excepcionalmente 3). Excepción: domingo de <b>elecciones</b>, 2 mañana + 1 tarde.</li>
+      <li>Las <b>suplencias</b> son un favor: el que trabaja no se anota en el rol; al que le tocaba le queda la fecha y se quema la vuelta igual.</li>
       <li>El turno te lo <b>asignan</b>: los voluntarios suelen tomar la mañana, así que al obligado le queda la <b>tarde (16–23)</b>.</li>
     </ul>
   </div>
@@ -204,6 +205,20 @@ details summary{cursor:pointer;color:var(--muted);font-size:14px}
     <p class="sub">Periodos conocidos de cada persona. Si el puntero llega a alguien que está de vacaciones, su plaza se quema sola y tú te acercas una posición.</p>
     <div class="actions"><button class="primary" id="btn-add-vac">+ Agregar periodo</button></div>
     <ul class="clean" id="vacs"></ul>
+  </div>
+</section>
+
+<!-- ============ SUPLENCIAS (dentro de Vacaciones) ============ -->
+<section id="view-fav" class="view">
+  <div class="card">
+    <h2>Suplencias (favores)</h2>
+    <p class="sub">Quién trabajó por quién. No cambia el rol: al que le tocó le queda anotada la fecha. Sirve para llevar la cuenta de favores y para saber a quién pedir.</p>
+    <div class="actions"><button class="primary" id="btn-add-fav">+ Registrar suplencia</button></div>
+    <ul class="clean" id="favs"></ul>
+  </div>
+  <div class="card">
+    <h2>Saldo de favores</h2>
+    <ul class="clean" id="fav-balance"></ul>
   </div>
 </section>
 
@@ -273,6 +288,7 @@ details summary{cursor:pointer;color:var(--muted);font-size:14px}
   <button data-view="rol"><span class="ic">▦</span>Rol</button>
   <button data-view="oficios"><span class="ic">▤</span>Oficios</button>
   <button data-view="vac"><span class="ic">☼</span>Vacaciones</button>
+  <button data-view="fav"><span class="ic">⇄</span>Favores</button>
   <button data-view="ajustes"><span class="ic">⚙</span>Ajustes</button>
 </nav>
 
@@ -315,6 +331,7 @@ function seed(){
     people, rounds:10, entries,
     oficios:[{id:uid(),date:'2026-11-16',am:2,pm:2,slots:4,vols:0,volsTxt:'',note:'Oficio Nims-009 (13-oct-26)'}],
     vacs:seedVacs(),
+    favores:[],
     cfg:{me:'p5',avoidKeys:['navidad','anionuevo'],avoidDates:[],defaultForced:2,hot:2,slotsMin:4,slotsMax:5,defAm:2,defPm:2,wkMin:2,wkMax:3,wkAm:2,wkPm:0,scenario:'hist',plan:[],rest:[{id:'r1',from:'2026-01-01',to:'2027-01-31',days:[4,5]}]}
   };
 }
@@ -347,7 +364,7 @@ function parseVols(txt){
 }
 let S=load();
 function load(){ let d=null; try{const r=localStorage.getItem(KEY); if(r) d=JSON.parse(r);}catch(e){} if(!d) d=seed(); d.cfg.slotsMin??=4; d.cfg.slotsMax??=5; d.cfg.scenario??='hist'; for(const p of d.people){ if(!p.ini) p.ini=autoIni(p.name); } for(const o of d.oficios||[]){ o.volsTxt??=''; }
-  d.cfg.plan??=[]; d.cfg.rest??=[{id:'r1',from:'2026-01-01',to:'2027-01-31',days:[4,5]}]; d.cfg.defAm??=2; d.cfg.wkMin??=2; d.cfg.wkMax??=3; d.cfg.wkAm??=2; d.cfg.wkPm??=0; d.cfg.defPm??=2; for(const o of d.oficios||[]){ if(o.am==null){o.pm=Math.min(2,o.slots|0); o.am=(o.slots|0)-o.pm;} } if(!d.cfg.vacsSeeded){ if(!d.vacs||!d.vacs.length) d.vacs=seedVacs(); d.cfg.vacsSeeded=true; } return d; }
+  d.favores??=[]; d.cfg.plan??=[]; d.cfg.rest??=[{id:'r1',from:'2026-01-01',to:'2027-01-31',days:[4,5]}]; d.cfg.defAm??=2; d.cfg.wkMin??=2; d.cfg.wkMax??=3; d.cfg.wkAm??=2; d.cfg.wkPm??=0; d.cfg.defPm??=2; for(const o of d.oficios||[]){ if(o.am==null){o.pm=Math.min(2,o.slots|0); o.am=(o.slots|0)-o.pm;} } if(!d.cfg.vacsSeeded){ if(!d.vacs||!d.vacs.length) d.vacs=seedVacs(); d.cfg.vacsSeeded=true; } return d; }
 function save(){ try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){} render(); }
 
 /* ================= Fechas ================= */
@@ -456,6 +473,18 @@ function shiftSplit(item,forcedN){
   const volAm=Math.min(am,vols), volPm=vols-volAm;
   return {am:Math.max(0,am-volAm), pm:Math.max(0,pm-volPm)}; // plazas que quedan para obligados
 }
+/* Candidatos a quien pedir suplencia en una fecha: ya quemaron la vuelta en curso (o van después de mí en la fila),
+   están activos y no estarán de vacaciones/curso ese día. */
+function coverCandidates(dateStr,sim){
+  // Con la simulación: quién ya quedó quemado antes de esa fecha (protegido) y quién trabaja ese mismo día (no puede suplir).
+  const burned=new Set(), sameDay=new Set();
+  for(const st of sim.steps){ if(st.date<dateStr){ st.forced.forEach(p=>burned.add(p.id)); st.skipped.forEach(x=>burned.add(x.p.id)); } else if(st.date===dateStr){ st.forced.forEach(p=>sameDay.add(p.id)); } }
+  const cr=currentRound(); activePeople().forEach(p=>{ if(entry(p.id,cr)) burned.add(p.id); });
+  return activePeople().filter(p=>p.id!==S.cfg.me&&!onLeave(p.id,dateStr)&&!sameDay.has(p.id)).map(p=>{
+    const owes=(S.favores||[]).filter(f=>f.workerId===S.cfg.me&&f.forId===p.id).length-(S.favores||[]).filter(f=>f.workerId===p.id&&f.forId===S.cfg.me).length;
+    return {p,burned:burned.has(p.id),owes,score:(burned.has(p.id)?2:0)+Math.max(-1,Math.min(1,owes))};
+  }).sort((a,b)=>b.score-a.score);
+}
 /* simulación: consume la cola fecha por fecha */
 function simulate(scenario,plan){
   plan=plan||S.cfg.plan||[];
@@ -484,7 +513,7 @@ function simulate(scenario,plan){
 }
 
 /* ================= Render ================= */
-function render(){ renderPanel(); renderRol(); renderPeople(); renderOficios(); renderVacs(); renderAjustes(); }
+function render(){ renderPanel(); renderRol(); renderPeople(); renderOficios(); renderVacs(); renderFavs(); renderAjustes(); }
 
 function renderPanel(){
   const m=me(); document.getElementById('hdr-sub').textContent=m?`Rol de guardias · ${m.name}`:'Rol de guardias';
@@ -515,7 +544,12 @@ function renderPanel(){
     } else if(isAvoid(sim.myHit.date)){
       const sp=sim.myHit.split; const turno=sp.am?'mañana o tarde (quedan plazas de ambos turnos)':'<b>tarde 16:00–23:00</b> (los voluntarios se llevan la mañana)';
       alert('danger',`Riesgo: te tocaría el ${fmt(sim.myHit.date)}${nm}`,
-        `Es una fecha que quieres evitar${isRest(sim.myHit.date)?' <b>y además cae en tu descanso</b>':''}, y el turno sería probablemente ${turno}. Opciones: <br>• Pide <b>vacaciones o curso</b> que cubran ese día.<br>• Si una fecha anterior aceptable se queda con huecos, <b>no te apuntes de voluntario</b>: déjate obligar ahí y llegas protegido.<br>• Si esa fecha se llena de voluntarios, el puntero no se mueve y el riesgo se pospone.<br>• Último recurso: si ya es seguro que te obligan ese día, apuntarte de voluntario <b>ese mismo día</b> te asegura la mañana (pero no quema tu vuelta).`);
+        `Es una fecha que quieres evitar${isRest(sim.myHit.date)?' <b>y además cae en tu descanso</b>':''}, y el turno sería probablemente ${turno}. Opciones: <br>• Pide <b>vacaciones o curso</b> que cubran ese día.<br>• Si una fecha anterior aceptable se queda con huecos, <b>no te apuntes de voluntario</b>: déjate obligar ahí y llegas protegido.<br>• Si esa fecha se llena de voluntarios, el puntero no se mueve y el riesgo se pospone.<br>• <b>Pide una suplencia</b>: si alguien trabaja por ti, tú sigues anotado (te quemas la vuelta) sin trabajar ese día.<br>• Último recurso: si ya es seguro que te obligan ese día, apuntarte de voluntario <b>ese mismo día</b> te asegura la mañana (pero no quema tu vuelta).`);
+      const cands=coverCandidates(sim.myHit.date,sim);
+      if(cands.length){
+        const list=cands.slice(0,6).map(c=>`${c.p.name}${c.burned?' <span class="badge ok">ya protegido</span>':' <span class="badge warn">aún le toca</span>'}${c.owes>0?' <span class="badge info">te debe '+c.owes+'</span>':c.owes<0?' <span class="badge">le debes '+(-c.owes)+'</span>':''}`).join('<br>');
+        alert('info',`A quién pedir suplencia para el ${fmt(sim.myHit.date)}`,`Disponibles ese día (sin vacaciones/curso y sin plaza forzada ese día). Suplir no cambia su rol; los marcados "ya protegido" se quemaron la vuelta antes de esa fecha.<br>${list}`);
+      }
     } else if(isRest(sim.myHit.date)){
       const sp=sim.myHit.split; const turno=sp.am?'mañana o tarde':'tarde 16:00–23:00';
       alert('warn',`Te tocaría el ${fmt(sim.myHit.date)}${nm}, que es tu día de descanso`,`Turno probable: <b>${turno}</b>. No es fecha tóxica, pero perderías un día libre. Si la fecha anterior aceptable se queda con huecos, <b>no te apuntes</b> ahí para que te obliguen antes; si prefieres no arriesgar, considera vacaciones/curso.`);
@@ -691,6 +725,40 @@ function editRest(r){
     };
   });
 }
+function renderFavs(){
+  const U=document.getElementById('favs'); U.innerHTML='';
+  const list=(S.favores||[]).slice().sort((a,b)=>a.date<b.date?-1:1);
+  const nm=id=>(S.people.find(p=>p.id===id)||{}).name||'?';
+  if(!list.length) U.innerHTML='<li class="muted">Sin suplencias registradas.</li>';
+  for(const f of list){
+    const li=document.createElement('li');
+    li.innerHTML=`<div class="grow"><b>${nm(f.workerId)}</b> trabajó por <b>${nm(f.forId)}</b><div class="sub">${fmt(f.date)}${f.note?' · '+f.note:''}</div></div><button class="small danger">✕</button>`;
+    li.querySelector('button').onclick=()=>{S.favores=S.favores.filter(x=>x.id!==f.id);save();};
+    U.appendChild(li);
+  }
+  const B=document.getElementById('fav-balance'); B.innerHTML='';
+  const bal={};
+  for(const f of list){ if(f.workerId===S.cfg.me) bal[f.forId]=(bal[f.forId]||0)+1; if(f.forId===S.cfg.me) bal[f.workerId]=(bal[f.workerId]||0)-1; }
+  const ids=Object.keys(bal); if(!ids.length){B.innerHTML='<li class="muted">Sin movimientos contigo.</li>';return;}
+  for(const id of ids){ const v=bal[id]; const li=document.createElement('li'); li.innerHTML=`<span>${nm(id)}</span><span class="badge ${v>0?'info':''}">${v>0?'te debe '+v:v<0?'le debes '+(-v):'a mano'}</span>`; B.appendChild(li); }
+}
+function editFav(){
+  const f={id:uid(),date:'',workerId:S.people[0]?.id,forId:S.cfg.me,note:''};
+  const opts=sel=>S.people.map(p=>`<option value="${p.id}" ${p.id===sel?'selected':''}>${p.name}</option>`).join('');
+  openDlg(`<h2>Registrar suplencia</h2>
+    <label>Fecha</label><input type="date" id="f-d">
+    <label>Quién trabajó</label><select id="f-w">${opts(f.workerId)}</select>
+    <label>Por quién (a quién le tocaba)</label><select id="f-f">${opts(f.forId)}</select>
+    <label>Nota</label><input type="text" id="f-n" placeholder="compromiso, turno, etc.">
+    <div class="actions"><button data-close>Cancelar</button><button class="primary" id="f-ok">Guardar</button></div>`,()=>{
+    document.getElementById('f-ok').onclick=()=>{
+      const d=document.getElementById('f-d').value; if(!d){alert('Falta la fecha');return;}
+      f.date=d;f.workerId=document.getElementById('f-w').value;f.forId=document.getElementById('f-f').value;f.note=document.getElementById('f-n').value.trim();
+      if(f.workerId===f.forId){alert('Elige dos personas distintas');return;}
+      S.favores.push(f); dlg.close(); save();
+    };
+  });
+}
 function renderAjustes(){
   renderRest();
   const sel=document.getElementById('cfg-me');
@@ -783,6 +851,7 @@ document.getElementById('btn-add-person').onclick=()=>{const n=prompt('Nombre de
 document.getElementById('btn-add-oficio').onclick=()=>editOficio(null);
 document.getElementById('btn-add-vac').onclick=()=>editVac(null);
 document.getElementById('btn-add-rest').onclick=()=>editRest(null);
+document.getElementById('btn-add-fav').onclick=()=>editFav();
 document.getElementById('btn-avoid-add').onclick=()=>{const d=document.getElementById('avoid-date').value;if(d&&!S.cfg.avoidDates.includes(d)){S.cfg.avoidDates.push(d);save();}};
 document.getElementById('btn-export').onclick=()=>{const a=document.createElement('a');a.href='data:application/json;charset=utf-8,'+encodeURIComponent(JSON.stringify(S,null,2));a.download='tiempo-extra-'+iso(today())+'.json';a.click();};
 document.getElementById('btn-import').onclick=()=>document.getElementById('file-import').click();
