@@ -290,12 +290,30 @@ function seed(){
   return {
     people, rounds:10, entries,
     oficios:[{id:uid(),date:'2026-11-16',slots:4,vols:0,note:'Oficio Nims-009 (13-oct-26): 2 mañana + 2 tarde'}],
-    vacs:[],
+    vacs:seedVacs(),
     cfg:{me:'p5',avoidKeys:['navidad','anionuevo'],avoidDates:[],defaultForced:2,hot:2,slotsMin:4,slotsMax:5,scenario:'hist',plan:[]}
   };
 }
+/* Calendario de vacaciones 2026 (publicado dic-2025), solo integrantes de la lista.
+   p0 Nicolás, p1 Julio, p2 Gilberto, p3 Zacarías, p4 Erick, p5 Noel, p6 Felipe, p7 Gamaliel, p8 Jorge, p9 Yemil */
+function seedVacs(){
+  const V=(pid,from,to)=>({id:uid(),personId:pid,from,to,type:'V'});
+  return [
+    V('p6','2026-01-02','2026-01-13'),
+    V('p5','2026-03-10','2026-03-25'), V('p9','2026-03-10','2026-03-20'),
+    V('p0','2026-04-14','2026-04-29'), V('p1','2026-04-14','2026-04-29'),
+    V('p2','2026-05-06','2026-05-20'), V('p3','2026-05-06','2026-05-15'),
+    V('p5','2026-06-02','2026-06-13'), V('p9','2026-06-16','2026-06-24'),
+    V('p1','2026-07-14','2026-07-25'), V('p4','2026-07-14','2026-07-24'), V('p0','2026-07-28','2026-07-31'), V('p2','2026-07-28','2026-07-31'),
+    V('p0','2026-08-01','2026-08-11'), V('p2','2026-08-01','2026-08-11'), V('p3','2026-08-12','2026-08-21'), V('p8','2026-08-12','2026-08-26'), V('p6','2026-08-25','2026-08-31'),
+    V('p6','2026-09-01','2026-09-03'), V('p1','2026-09-08','2026-09-24'), V('p4','2026-09-08','2026-09-19'), V('p7','2026-09-29','2026-09-30'),
+    V('p7','2026-10-01','2026-10-30'), V('p8','2026-10-06','2026-10-20'), V('p9','2026-10-27','2026-10-31'),
+    V('p9','2026-11-01','2026-11-05'), V('p3','2026-11-03','2026-11-12'), V('p4','2026-11-10','2026-11-21'), V('p5','2026-11-18','2026-11-30'),
+    V('p5','2026-12-01','2026-12-02'), V('p6','2026-12-01','2026-12-10'), V('p0','2026-12-16','2026-12-31'), V('p2','2026-12-17','2026-12-31'),
+  ];
+}
 let S=load();
-function load(){ let d=null; try{const r=localStorage.getItem(KEY); if(r) d=JSON.parse(r);}catch(e){} if(!d) d=seed(); d.cfg.slotsMin??=4; d.cfg.slotsMax??=5; d.cfg.scenario??='hist'; d.cfg.plan??=[]; return d; }
+function load(){ let d=null; try{const r=localStorage.getItem(KEY); if(r) d=JSON.parse(r);}catch(e){} if(!d) d=seed(); d.cfg.slotsMin??=4; d.cfg.slotsMax??=5; d.cfg.scenario??='hist'; d.cfg.plan??=[]; if(!d.cfg.vacsSeeded){ if(!d.vacs||!d.vacs.length) d.vacs=seedVacs(); d.cfg.vacsSeeded=true; } return d; }
 function save(){ try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){} render(); }
 
 /* ================= Fechas ================= */
