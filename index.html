@@ -120,7 +120,7 @@ details summary{cursor:pointer;color:var(--muted);font-size:14px}
     <h3>Fecha estimada en que te obligan</h3>
     <div class="kpi">
       <div class="card"><div class="v" id="k-date-hist">–</div><div class="l">si se repite el historial (~voluntarios como siempre)</div></div>
-      <div class="card"><div class="v" id="k-date-min">–</div><div class="l">peor caso: nadie se apunta, piden <span id="k-smin"></span> entre semana / <span id="k-wkmin"></span> fin de semana</div></div>
+      <div class="card"><div class="v" id="k-date-min">–</div><div class="l">caso pesimista: nadie se apunta, piden <span id="k-smin"></span> entre semana / <span id="k-wkmin"></span> fin de semana</div></div>
       <div class="card"><div class="v" id="k-date-max">–</div><div class="l">peor caso: nadie se apunta, piden <span id="k-smax"></span> entre semana / <span id="k-wkmax"></span> fin de semana</div></div>
     </div>
     <div id="panel-alerts"></div>
@@ -208,7 +208,7 @@ details summary{cursor:pointer;color:var(--muted);font-size:14px}
   </div>
 </section>
 
-<!-- ============ SUPLENCIAS (dentro de Vacaciones) ============ -->
+<!-- ============ SUPLENCIAS / FAVORES ============ -->
 <section id="view-fav" class="view">
   <div class="card">
     <h2>Suplencias (favores)</h2>
@@ -269,6 +269,11 @@ details summary{cursor:pointer;color:var(--muted);font-size:14px}
       <div class="grow"><label>Reparto típico · mañana</label><input type="number" id="cfg-wkam" min="0" max="20" step="1"></div>
       <div class="grow"><label>Reparto típico · tarde</label><input type="number" id="cfg-wkpm" min="0" max="20" step="1"></div>
     </div>
+  </div>
+  <div class="card">
+    <h2>Iniciales de otras listas</h2>
+    <p class="sub">Iniciales que marcaste como de otra lista al capturar oficios. Quita una si fue un error: la app volverá a preguntar de quién es.</p>
+    <ul class="clean" id="ignored-list"></ul>
   </div>
   <div class="card">
     <h2>Datos</h2>
@@ -353,6 +358,7 @@ function seedVacs(){
     V('p5','2026-12-01','2026-12-02'), V('p6','2026-12-01','2026-12-10'), V('p0','2026-12-16','2026-12-31'), V('p2','2026-12-17','2026-12-31'),
   ];
 }
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const norm=t=>(t||'').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^A-Z]/g,'');
 const autoIni=name=>name.split(/\s+/).filter(Boolean).map(w=>w[0]).join('').toUpperCase();
 /* Reconoce iniciales de la hoja: devuelve {matched:[people], other:[txt]} */
@@ -363,8 +369,18 @@ function parseVols(txt){
   return {matched,other};
 }
 let S=load();
-function load(){ let d=null; try{const r=localStorage.getItem(KEY); if(r) d=JSON.parse(r);}catch(e){} if(!d) d=seed(); d.cfg.slotsMin??=4; d.cfg.slotsMax??=5; d.cfg.scenario??='hist'; for(const p of d.people){ if(!p.ini) p.ini=autoIni(p.name); p.iniOk??=false; p.willing??=false; p.note??=''; } d.cfg.ignoredIni??=[]; for(const o of d.oficios||[]){ o.volsTxt??=''; }
-  d.favores??=[]; d.cfg.plan??=[]; d.cfg.rest??=[{id:'r1',from:'2026-01-01',to:'2027-01-31',days:[4,5]}]; d.cfg.defAm??=2; d.cfg.wkMin??=2; d.cfg.wkMax??=3; d.cfg.wkAm??=2; d.cfg.wkPm??=0; d.cfg.defPm??=2; for(const o of d.oficios||[]){ if(o.am==null){o.pm=Math.min(2,o.slots|0); o.am=(o.slots|0)-o.pm;} } if(!d.cfg.vacsSeeded){ if(!d.vacs||!d.vacs.length) d.vacs=seedVacs(); d.cfg.vacsSeeded=true; } return d; }
+function load(){ let d=null; try{const r=localStorage.getItem(KEY); if(r) d=JSON.parse(r);}catch(e){} if(!d) d=seed(); return migrate(d); }
+/* Normaliza datos de versiones anteriores o importados: inicializa todo campo faltante sin sembrar datos de ejemplo. */
+function migrate(d){
+  d.people??=[]; d.rounds??=1; d.entries??={}; d.oficios??=[]; d.vacs??=[]; d.favores??=[]; d.cfg??={};
+  const c=d.cfg;
+  c.me??=null; c.avoidKeys??=[]; c.avoidDates??=[]; c.defaultForced??=2; c.hot??=2;
+  c.slotsMin??=4; c.slotsMax??=5; c.defAm??=2; c.defPm??=2; c.wkMin??=2; c.wkMax??=3; c.wkAm??=2; c.wkPm??=0;
+  c.scenario??='hist'; c.plan??=[]; c.rest??=[]; c.ignoredIni??=[]; delete c.vacsSeeded;
+  for(const p of d.people){ p.active??=true; if(!p.ini) p.ini=autoIni(p.name||''); p.iniOk??=false; p.willing??=false; p.note??=''; }
+  for(const o of d.oficios){ o.volsTxt??=''; o.vols??=0; o.slots??=0; o.note??=''; if(o.am==null){o.pm=Math.min(2,o.slots|0); o.am=(o.slots|0)-o.pm;} }
+  return d;
+}
 function save(){ try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){} render(); }
 
 /* ================= Fechas ================= */
@@ -422,10 +438,11 @@ function currentRound(){
 function pendingInRound(r){ return bottomUp().filter(p=>!entry(p.id,r)); }
 /* cola de personas en el orden en que el puntero las alcanzará (con su vuelta) */
 function queue(maxLen=40){
+  if(!activePeople().length) return [];
   const out=[]; let r=currentRound();
   out.push(...pendingInRound(r).map(p=>({p,r})));
   while(out.length<maxLen){ r++; out.push(...bottomUp().map(p=>({p,r}))); }
-  return out.slice(0,maxLen);
+  return out; // vueltas completas (puede exceder maxLen)
 }
 function onLeave(pid,dateStr){ return S.vacs.find(v=>v.personId===pid&&v.from<=dateStr&&v.to>=dateStr)||null; }
 
@@ -451,7 +468,6 @@ function estimateForced(item,hist,scenario){
   if(item.oficio){
     // oficio capturado: hoy ya hay X voluntarios; en el peor caso no se apunta nadie más
     const slots=item.oficio.slots|0, vols=item.oficio.vols|0;
-    if(scenario==='hist') return {n:Math.max(0,slots-vols),src:'oficio'};
     return {n:Math.max(0,slots-vols),src:'oficio'};
   }
   const wk=isWeekend(item.date); const sp=item.h&&item.h.split;
@@ -488,28 +504,34 @@ function coverCandidates(dateStr,sim){
 /* simulación: consume la cola fecha por fecha */
 function simulate(scenario,plan){
   plan=plan||S.cfg.plan||[];
-  const hist=forcedHistory(); const q=queue(60); let qi=0;
+  const hist=forcedHistory(); const q0=queue(60); const q=q0.slice(); // q0: fila original; q: lo que va quedando
+  let lastR=q.length?q[q.length-1].r:currentRound();
+  const extend=()=>{ lastR++; q.push(...bottomUp().map(p=>({p,r:lastR}))); };
   const steps=[]; let myHit=null; let slotsBeforeMe=0; let meSeen=false;
   for(const item of upcomingDates()){
-    const est=estimateForced(item,hist,scenario); const vol=plan.includes(item.date); let n=vol?Math.max(0,est.n-1):est.n; const forced=[],skipped=[];
-    // quienes ya van de voluntarios ese día no pueden ser obligados: se brincan sin consumirlos
+    const est=estimateForced(item,hist,scenario); const vol=plan.includes(item.date);
+    // si ya estoy anotado en la hoja del oficio, estimateForced ya me descontó: no restar dos veces
+    const alreadyVol=!!(item.oficio&&S.cfg.me&&parseVols(item.oficio.volsTxt).matched.some(p=>p.id===S.cfg.me));
+    let n=(vol&&!alreadyVol)?Math.max(0,est.n-1):est.n; const forced=[],skipped=[];
+    // quienes ya van de voluntarios ese día no pueden ser obligados: se brincan sin consumirlos (se quedan en su lugar de la fila)
     const volIds=new Set(item.oficio?parseVols(item.oficio.volsTxt).matched.map(p=>p.id):[]); if(vol&&S.cfg.me) volIds.add(S.cfg.me);
-    const deferred=[];
-    while(n>0&&qi<q.length){
-      const {p,r}=q[qi++];
-      if(volIds.has(p.id)){ deferred.push({p,r}); continue; }
+    let i=0, extended=false, usedSinceExtend=0;
+    while(n>0){
+      if(i>=q.length){ if(!activePeople().length||(extended&&!usedSinceExtend)) break; extend(); extended=true; usedSinceExtend=0; }
+      const {p,r}=q[i];
+      if(volIds.has(p.id)){ i++; continue; }
+      q.splice(i,1); usedSinceExtend++;
       const lv=onLeave(p.id,item.date);
       if(lv){ skipped.push({p,lv}); if(p.id===S.cfg.me&&!meSeen){meSeen=true;myHit={date:item.date,leave:lv};} continue; }
       forced.push(p); n--;
       if(p.id===S.cfg.me){ if(!meSeen){meSeen=true;myHit={date:item.date,leave:null,split:shiftSplit(item,est.n)};} }
       else if(!meSeen) slotsBeforeMe++;
     }
-    if(deferred.length){ q.splice(qi,0,...deferred); }
     steps.push({...item,est,forced,skipped,vol,split:shiftSplit(item,forced.length)});
   }
-  // plazas reales por delante (sin contar vacaciones) según la cola, independiente de fechas
-  let ahead=0; for(const x of q){ if(x.p.id===S.cfg.me) break; ahead++; }
-  return {steps,myHit,ahead,slotsBeforeMe,q};
+  // plazas reales por delante (sin contar vacaciones) según la fila original, independiente de fechas
+  let ahead=0; for(const x of q0){ if(x.p.id===S.cfg.me) break; ahead++; }
+  return {steps,myHit,ahead,slotsBeforeMe,q:q0};
 }
 
 /* ================= Render ================= */
@@ -531,7 +553,31 @@ function renderPanel(){
   const badHits=hits.filter(s=>isAvoid(s.myHit.date));
   const A=document.getElementById('panel-alerts'); A.innerHTML='';
   const alert=(cls,title,body)=>{const d=document.createElement('div');d.className='alert '+cls;d.innerHTML=`<b>${title}</b>${body}`;A.appendChild(d);};
-  if(!m){alert('warn','Elige quién eres','En Ajustes, selecciona tu nombre.');return;}
+  // cola y simulación (no dependen de quién soy)
+  const paintLists=()=>{
+    const Q=document.getElementById('queue'); Q.innerHTML='';
+    sim.q.slice(0,12).forEach((x,i)=>{
+      const li=document.createElement('li'); const isMe=x.p.id===S.cfg.me;
+      li.innerHTML=`<span>${i+1}. ${isMe?'<b>'+esc(x.p.name)+' (tú)</b>':esc(x.p.name)} <span class="muted">· vuelta ${x.r}</span></span>${isMe?'<span class="badge info">tú</span>':''}`;
+      if(isMe) li.style.background='var(--me)';
+      Q.appendChild(li);
+    });
+    if(!sim.q.length) Q.innerHTML='<li class="muted">Nadie activo en la lista.</li>';
+    const L=document.getElementById('sim'); L.innerHTML='';
+    for(const s of sim.steps.slice(0,14)){
+      const li=document.createElement('li');
+      const who=s.forced.map(p=>p.id===S.cfg.me?`<b>${esc(p.name)}</b>`:esc(p.name)).join(', ')||'<span class="muted">nadie</span>';
+      const sk=s.skipped.length?`<div class="muted">Se saltan (fuera): ${s.skipped.map(x=>esc(x.p.name)).join(', ')}</div>`:'';
+      const tag=(isAvoid(s.date)?'<span class="badge danger">evitar</span> ':'')+(isRest(s.date)?'<span class="badge warn">tu descanso</span> ':'')+(s.vol?'<span class="badge ok">tú voluntario</span>':'');
+      const src=s.oficio?`oficio: ${s.oficio.slots} plazas − ${s.oficio.vols} vol.`:s.est.src;
+      const sp=s.forced.length?` <span class="muted">· ${s.split.am?s.split.am+' mañana':''}${s.split.am&&s.split.pm?', ':''}${s.split.pm?s.split.pm+' tarde':''}</span>`:'';
+      li.innerHTML=`<div class="d">${fmt(s.date)} ${s.h?'· '+s.h.name:''} ${tag}</div><div>${s.est.n} obligado${s.est.n===1?'':'s'} <span class="muted">(${src})</span> → ${who}${sp}</div>${sk}`;
+      if(s.forced.some(p=>p.id===S.cfg.me)) li.style.background='var(--me)';
+      L.appendChild(li);
+    }
+  };
+  if(!m){alert('warn','Elige quién eres','En Ajustes, selecciona tu nombre.'); document.getElementById('k-slots').textContent='–'; paintLists(); renderPlan(); return;}
+  if(!m.active){alert('warn','Estás dado de baja en la lista','Mientras estés de baja el puntero no te alcanza. Reactívate en Rol › Personas para ver tu pronóstico.'); document.getElementById('k-slots').textContent='–'; paintLists(); renderPlan(); return;}
   const hot=sim.ahead<=(S.cfg.hot|0);
   if(badHits.length&&!(sim.myHit&&!sim.myHit.leave&&isAvoid(sim.myHit.date))){
     const ds=[...new Set(badHits.map(s=>s.myHit.date))].map(d=>fmt(d)).join(', ');
@@ -547,7 +593,7 @@ function renderPanel(){
         `Es una fecha que quieres evitar${isRest(sim.myHit.date)?' <b>y además cae en tu descanso</b>':''}, y el turno sería probablemente ${turno}. Opciones: <br>• Pide <b>vacaciones o curso</b> que cubran ese día.<br>• Si una fecha anterior aceptable se queda con huecos, <b>no te apuntes de voluntario</b>: déjate obligar ahí y llegas protegido.<br>• Si esa fecha se llena de voluntarios, el puntero no se mueve y el riesgo se pospone.<br>• <b>Pide una suplencia</b>: si alguien trabaja por ti, tú sigues anotado (te quemas la vuelta) sin trabajar ese día.<br>• Último recurso: si ya es seguro que te obligan ese día, apuntarte de voluntario <b>ese mismo día</b> te asegura la mañana (pero no quema tu vuelta).`);
       const cands=coverCandidates(sim.myHit.date,sim);
       if(cands.length){
-        const list=cands.slice(0,6).map(c=>`${c.p.name}${c.p.willing?' <span class="badge ok">dispuesto</span>':''}${c.p.note?' <span class="muted">· '+c.p.note+'</span>':''}${c.burned?' <span class="badge ok">ya protegido</span>':' <span class="badge warn">aún le toca</span>'}${c.owes>0?' <span class="badge info">te debe '+c.owes+'</span>':c.owes<0?' <span class="badge">le debes '+(-c.owes)+'</span>':''}`).join('<br>');
+        const list=cands.slice(0,6).map(c=>`${esc(c.p.name)}${c.p.willing?' <span class="badge ok">dispuesto</span>':''}${c.p.note?' <span class="muted">· '+esc(c.p.note)+'</span>':''}${c.burned?' <span class="badge ok">ya protegido</span>':' <span class="badge warn">aún le toca</span>'}${c.owes>0?' <span class="badge info">te debe '+c.owes+'</span>':c.owes<0?' <span class="badge">le debes '+(-c.owes)+'</span>':''}`).join('<br>');
         alert('info',`A quién pedir suplencia para el ${fmt(sim.myHit.date)}`,`Disponibles ese día (sin vacaciones/curso y sin plaza forzada ese día). Suplir no cambia su rol; los marcados "ya protegido" se quemaron la vuelta antes de esa fecha.<br>${list}`);
       }
     } else if(isRest(sim.myHit.date)){
@@ -569,27 +615,7 @@ function renderPanel(){
     const left=Math.max(0,(o.slots|0)-(o.vols|0));
     if(days>=0) alert(days<=2?'warn':'info',`Oficio ${fmt(o.date)}: voluntarios hasta ${fmt(iso(dl))} (${days===0?'hoy':days+' días'})`,`${left} plaza${left===1?'':'s'} de tu lista sin voluntario${left===1?'':'s'}.`);
   }
-  // cola
-  const Q=document.getElementById('queue'); Q.innerHTML='';
-  sim.q.slice(0,12).forEach((x,i)=>{
-    const li=document.createElement('li'); const isMe=x.p.id===S.cfg.me;
-    li.innerHTML=`<span>${i+1}. ${isMe?'<b>'+x.p.name+' (tú)</b>':x.p.name} <span class="muted">· vuelta ${x.r}</span></span>${isMe?'<span class="badge info">tú</span>':''}`;
-    if(isMe) li.style.background='var(--me)';
-    Q.appendChild(li);
-  });
-  // simulación
-  const L=document.getElementById('sim'); L.innerHTML='';
-  for(const s of sim.steps.slice(0,14)){
-    const li=document.createElement('li');
-    const who=s.forced.map(p=>p.id===S.cfg.me?`<b>${p.name}</b>`:p.name).join(', ')||'<span class="muted">nadie</span>';
-    const sk=s.skipped.length?`<div class="muted">Se saltan (fuera): ${s.skipped.map(x=>x.p.name).join(', ')}</div>`:'';
-    const tag=(isAvoid(s.date)?'<span class="badge danger">evitar</span> ':'')+(isRest(s.date)?'<span class="badge warn">tu descanso</span> ':'')+(s.vol?'<span class="badge ok">tú voluntario</span>':'');
-    const src=s.oficio?`oficio: ${s.oficio.slots} plazas − ${s.oficio.vols} vol.`:s.est.src;
-    const sp=s.forced.length?` <span class="muted">· ${s.split.am?s.split.am+' mañana':''}${s.split.am&&s.split.pm?', ':''}${s.split.pm?s.split.pm+' tarde':''}</span>`:'';
-    li.innerHTML=`<div class="d">${fmt(s.date)} ${s.h?'· '+s.h.name:''} ${tag}</div><div>${s.est.n} obligado${s.est.n===1?'':'s'} <span class="muted">(${src})</span> → ${who}${sp}</div>${sk}`;
-    if(s.forced.some(p=>p.id===S.cfg.me)) li.style.background='var(--me)';
-    L.appendChild(li);
-  }
+  paintLists();
   renderPlan();
 }
 
@@ -621,15 +647,16 @@ function renderPlan(){
 
 function renderRol(){
   const T=document.getElementById('rol'); const cr=currentRound();
+  const R=Math.max(S.rounds,cr); // si todas las vueltas están completas, muestra la siguiente
   const q=queue(1); const nextP=q[0]?q[0].p.id:null; const nextR=q[0]?q[0].r:null;
   let h='<tr><th style="text-align:left">Nombre</th>';
-  for(let r=1;r<=S.rounds;r++) h+=`<th>V${r}</th>`;
+  for(let r=1;r<=R;r++) h+=`<th>V${r}</th>`;
   h+='</tr>';
   for(const p of S.people){
-    h+=`<tr class="${p.id===S.cfg.me?'me':''} ${p.active?'':'inactive'}"><td class="name">${p.name}</td>`;
-    for(let r=1;r<=S.rounds;r++){
+    h+=`<tr class="${p.id===S.cfg.me?'me':''} ${p.active?'':'inactive'}"><td class="name">${esc(p.name)}</td>`;
+    for(let r=1;r<=R;r++){
       const e=entry(p.id,r); const ptr=(p.id===nextP&&r===nextR&&p.active)?' pointer':'';
-      if(e) h+=`<td class="cell ${e.t}${ptr}" data-p="${p.id}" data-r="${r}">${e.t==='O'?fmtShort(e.d):(e.t==='V'?'VAC':e.t==='C'?'CURSO':'INCAP')}</td>`;
+      if(e) h+=`<td class="cell ${e.t}${ptr}" data-p="${p.id}" data-r="${r}">${e.t==='O'?(e.d?fmtShort(e.d):'O'):(e.t==='V'?'VAC':e.t==='C'?'CURSO':'INCAP')}</td>`;
       else h+=`<td class="cell empty${ptr}" data-p="${p.id}" data-r="${r}">·</td>`;
     }
     h+='</tr>';
@@ -642,7 +669,7 @@ function renderPeople(){
   const U=document.getElementById('people'); U.innerHTML='';
   S.people.forEach((p,i)=>{
     const li=document.createElement('li');
-    li.innerHTML=`<span>${i+1}. ${p.name} <span class="badge" style="background:var(--bg)" title="${p.iniOk?'confirmadas':'sin confirmar'}">${p.ini||'—'}${p.iniOk?'':' ?'}</span>${p.willing?' <span class="badge ok">dispuesto en fechas grandes</span>':''}${p.note?'<div class="sub">'+p.note+'</div>':''} ${p.id===S.cfg.me?'<span class="badge info">tú</span>':''} ${p.active?'':'<span class="badge warn">baja</span>'}</span>
+    li.innerHTML=`<span>${i+1}. ${esc(p.name)} <span class="badge" style="background:var(--bg)" title="${p.iniOk?'confirmadas':'sin confirmar'}">${esc(p.ini||'—')}${p.iniOk?'':' ?'}</span>${p.willing?' <span class="badge ok">dispuesto en fechas grandes</span>':''}${p.note?'<div class="sub">'+esc(p.note)+'</div>':''} ${p.id===S.cfg.me?'<span class="badge info">tú</span>':''} ${p.active?'':'<span class="badge warn">baja</span>'}</span>
       <span class="row">
         <button class="small" data-a="up">↑</button><button class="small" data-a="down">↓</button>
         <button class="small" data-a="tog">${p.active?'Dar de baja':'Reactivar'}</button>
@@ -661,7 +688,7 @@ function renderPeople(){
       if(a==='will') p.willing=!p.willing;
       if(a==='note'){const n=prompt('Nota (disposición, preferencias, acuerdos…)',p.note||''); if(n!==null) p.note=n.trim();}
       if(a==='ini'){const n=prompt('Iniciales como las anota en la hoja',p.ini||autoIni(p.name)); if(n){p.ini=norm(n);p.iniOk=true;}}
-      if(a==='del'){ if(confirm(`¿Eliminar a ${p.name} y sus registros?`)){ S.people.splice(i,1); for(const k in S.entries) if(k.startsWith(p.id+'|')) delete S.entries[k]; S.vacs=S.vacs.filter(v=>v.personId!==p.id); if(S.cfg.me===p.id) S.cfg.me=null; } }
+      if(a==='del'){ if(confirm(`¿Eliminar a ${p.name} y sus registros?`)){ S.people.splice(i,1); for(const k in S.entries) if(k.startsWith(p.id+'|')) delete S.entries[k]; S.vacs=S.vacs.filter(v=>v.personId!==p.id); S.favores=(S.favores||[]).filter(f=>f.workerId!==p.id&&f.forId!==p.id); if(S.cfg.me===p.id) S.cfg.me=null; } }
       save();
     });
     U.appendChild(li);
@@ -677,8 +704,8 @@ function renderOficios(){
     const li=document.createElement('li'); const past=o.date<t; const dl=iso(addDays(parse(o.date),-3));
     const h=holidayOn(o.date); const left=Math.max(0,(o.slots|0)-(o.vols|0));
     li.innerHTML=`<div class="grow"><div><b>${fmt(o.date)}</b> ${h?'· '+h.name:''} ${past?'<span class="badge">pasado</span>':''} ${isAvoid(o.date)?'<span class="badge danger">evitar</span>':''}</div>
-      <div class="sub">${o.am??'?'} mañana + ${o.pm??'?'} tarde · ${o.vols} voluntarios de mi lista · <b>${left} sin cubrir</b> · límite ${fmt(dl)}</div>${o.volsTxt?`<div class="sub">Anotados: ${(()=>{const r=parseVols(o.volsTxt);return [...r.matched.map(p=>'<b>'+p.ini+'</b>'),...r.other].join(', ');})()}</div>`:''}
-      ${o.note?`<div class="sub">${o.note}</div>`:''}</div>
+      <div class="sub">${o.am??'?'} mañana + ${o.pm??'?'} tarde · ${o.vols} voluntario${(o.vols|0)===1?'':'s'} de mi lista · <b>${left} sin cubrir</b> · límite ${fmt(dl)}</div>${o.volsTxt?`<div class="sub">Anotados: ${(()=>{const r=parseVols(o.volsTxt);return [...r.matched.map(p=>'<b>'+esc(p.ini)+'</b>'),...r.other.map(esc)].join(', ');})()}</div>`:''}
+      ${o.note?`<div class="sub">${esc(o.note)}</div>`:''}</div>
       <span class="row"><button class="small" data-a="edit">Editar</button><button class="small danger" data-a="del">✕</button></span>`;
     li.querySelector('[data-a=edit]').onclick=()=>editOficio(o);
     li.querySelector('[data-a=del]').onclick=()=>{ if(confirm('¿Eliminar oficio?')){S.oficios=S.oficios.filter(x=>x.id!==o.id);save();} };
@@ -692,7 +719,7 @@ function renderVacs(){
   if(!list.length){U.innerHTML='<li class="muted">Sin periodos capturados. Agrega las vacaciones conocidas de cada compañero.</li>';return;}
   for(const v of list){
     const p=S.people.find(x=>x.id===v.personId); const li=document.createElement('li');
-    li.innerHTML=`<div class="grow"><b>${p?p.name:'?'}</b> <span class="badge ${v.type==='C'?'warn':'info'}">${v.type==='C'?'curso':'vacaciones'}</span><div class="sub">${fmt(v.from)} → ${fmt(v.to)}</div></div>
+    li.innerHTML=`<div class="grow"><b>${p?esc(p.name):'?'}</b> <span class="badge ${v.type==='C'?'warn':'info'}">${v.type==='C'?'curso':'vacaciones'}</span><div class="sub">${fmt(v.from)} → ${fmt(v.to)}</div></div>
       <span class="row"><button class="small" data-a="edit">Editar</button><button class="small danger" data-a="del">✕</button></span>`;
     li.querySelector('[data-a=edit]').onclick=()=>editVac(v);
     li.querySelector('[data-a=del]').onclick=()=>{S.vacs=S.vacs.filter(x=>x.id!==v.id);save();};
@@ -736,7 +763,7 @@ function renderFavs(){
   if(!list.length) U.innerHTML='<li class="muted">Sin suplencias registradas.</li>';
   for(const f of list){
     const li=document.createElement('li');
-    li.innerHTML=`<div class="grow"><b>${nm(f.workerId)}</b> trabajó por <b>${nm(f.forId)}</b><div class="sub">${fmt(f.date)}${f.note?' · '+f.note:''}</div></div><button class="small danger">✕</button>`;
+    li.innerHTML=`<div class="grow"><b>${esc(nm(f.workerId))}</b> trabajó por <b>${esc(nm(f.forId))}</b><div class="sub">${fmt(f.date)}${f.note?' · '+esc(f.note):''}</div></div><button class="small danger">✕</button>`;
     li.querySelector('button').onclick=()=>{S.favores=S.favores.filter(x=>x.id!==f.id);save();};
     U.appendChild(li);
   }
@@ -744,11 +771,11 @@ function renderFavs(){
   const bal={};
   for(const f of list){ if(f.workerId===S.cfg.me) bal[f.forId]=(bal[f.forId]||0)+1; if(f.forId===S.cfg.me) bal[f.workerId]=(bal[f.workerId]||0)-1; }
   const ids=Object.keys(bal); if(!ids.length){B.innerHTML='<li class="muted">Sin movimientos contigo.</li>';return;}
-  for(const id of ids){ const v=bal[id]; const li=document.createElement('li'); li.innerHTML=`<span>${nm(id)}</span><span class="badge ${v>0?'info':''}">${v>0?'te debe '+v:v<0?'le debes '+(-v):'a mano'}</span>`; B.appendChild(li); }
+  for(const id of ids){ const v=bal[id]; const li=document.createElement('li'); li.innerHTML=`<span>${esc(nm(id))}</span><span class="badge ${v>0?'info':''}">${v>0?'te debe '+v:v<0?'le debes '+(-v):'a mano'}</span>`; B.appendChild(li); }
 }
 function editFav(){
   const f={id:uid(),date:'',workerId:S.people[0]?.id,forId:S.cfg.me,note:''};
-  const opts=sel=>S.people.map(p=>`<option value="${p.id}" ${p.id===sel?'selected':''}>${p.name}</option>`).join('');
+  const opts=sel=>S.people.map(p=>`<option value="${p.id}" ${p.id===sel?'selected':''}>${esc(p.name)}</option>`).join('');
   openDlg(`<h2>Registrar suplencia</h2>
     <label>Fecha</label><input type="date" id="f-d">
     <label>Quién trabajó</label><select id="f-w">${opts(f.workerId)}</select>
@@ -766,8 +793,16 @@ function editFav(){
 function renderAjustes(){
   renderRest();
   const sel=document.getElementById('cfg-me');
-  sel.innerHTML='<option value="">— elige —</option>'+S.people.map(p=>`<option value="${p.id}" ${p.id===S.cfg.me?'selected':''}>${p.name}</option>`).join('');
+  sel.innerHTML='<option value="">— elige —</option>'+S.people.map(p=>`<option value="${p.id}" ${p.id===S.cfg.me?'selected':''}>${esc(p.name)}</option>`).join('');
   sel.onchange=()=>{S.cfg.me=sel.value||null;save();};
+  const IG=document.getElementById('ignored-list'); IG.innerHTML='';
+  const ign=(S.cfg.ignoredIni||[]).slice().sort();
+  if(!ign.length) IG.innerHTML='<li class="muted">Ninguna.</li>';
+  for(const t of ign){
+    const li=document.createElement('li'); li.innerHTML=`<span><b>${esc(t)}</b></span><button class="small danger" title="Quitar">✕</button>`;
+    li.querySelector('button').onclick=()=>{S.cfg.ignoredIni=S.cfg.ignoredIni.filter(x=>x!==t);save();};
+    IG.appendChild(li);
+  }
   const C=document.getElementById('avoid-chips'); C.innerHTML='';
   for(const h of HOLIDAYS){
     const c=document.createElement('span'); c.className='chip'+(S.cfg.avoidKeys.includes(h.key)?' on':''); c.textContent=h.name;
@@ -795,7 +830,7 @@ function openDlg(html,onOpen){ inner.innerHTML=html; dlg.showModal(); if(onOpen)
 
 function editCell(pid,r){
   const p=S.people.find(x=>x.id===pid); const e=entry(pid,r)||{t:'O',d:''};
-  openDlg(`<h2>${p.name} · vuelta ${r}</h2>
+  openDlg(`<h2>${esc(p.name)} · vuelta ${r}</h2>
     <label>Tipo</label>
     <select id="c-t"><option value="O">Obligado (trabajó)</option><option value="V">Vacaciones</option><option value="C">Curso</option><option value="I">Incapacidad</option></select>
     <label>Fecha (para obligado)</label><input type="date" id="c-d" value="${e.d||''}">
@@ -811,27 +846,39 @@ function editOficio(o){
   openDlg(`<h2>${isNew?'Capturar oficio':'Editar oficio'}</h2>
     <label>Fecha del tiempo extra</label><input type="date" id="o-d" value="${o.date}">
     <div class="row"><div class="grow"><label>Plazas de mi lista · mañana</label><input type="number" id="o-am" min="0" value="${o.am??2}"></div><div class="grow"><label>Plazas de mi lista · tarde</label><input type="number" id="o-pm" min="0" value="${o.pm??2}"></div></div>
-    <label>Iniciales anotadas en la hoja (separadas por coma o espacio)</label><input type="text" id="o-vt" value="${o.volsTxt||''}" placeholder="GND YADL JFTR NSM…" autocapitalize="characters">
+    <label>Iniciales anotadas en la hoja (separadas por coma o espacio)</label><input type="text" id="o-vt" value="${esc(o.volsTxt||'')}" placeholder="GND YADL JFTR NSM…" autocapitalize="characters">
     <div class="sub" id="o-vinfo" style="margin-top:4px"></div>
     <label>Voluntarios de mi lista (se calcula de las iniciales; puedes corregirlo)</label><input type="number" id="o-v" min="0" value="${o.vols}">
-    <label>Nota (turnos, especialidades, iniciales…)</label><textarea id="o-n" rows="2">${o.note||''}</textarea>
+    <label>Nota (turnos, especialidades, iniciales…)</label><textarea id="o-n" rows="2">${esc(o.note||'')}</textarea>
     <div class="actions"><button data-close>Cancelar</button><button class="primary" id="o-ok">Guardar</button></div>`,()=>{
     const vt=document.getElementById('o-vt'), vn=document.getElementById('o-v'), vi=document.getElementById('o-vinfo');
-    const refresh=()=>{ const r=parseVols(vt.value); vn.value=r.matched.length;
-      const unknown=r.other.filter(t=>!(S.cfg.ignoredIni||[]).includes(t));
-      const known=r.other.filter(t=>(S.cfg.ignoredIni||[]).includes(t));
-      let h=(r.matched.length?`De tu lista: <b>${r.matched.map(p=>p.name).join(', ')}</b>`:'De tu lista: ninguno')+(known.length?` · otras listas: ${known.join(', ')}`:'');
-      for(const t of unknown){ const guess=S.people.find(x=>norm(x.ini)===t&&!x.iniOk);
-        h+=`<div class="row" style="margin-top:6px"><span><b>${t}</b> ¿de quién es?</span><select data-ini="${t}" style="flex:1 1 120px;padding:6px"><option value="">— otra lista —</option>${activePeople().filter(x=>!x.iniOk||norm(x.ini)===t).map(x=>`<option value="${x.id}" ${guess&&guess.id===x.id?'selected':''}>${x.name}</option>`).join('')}</select></div>`; }
+    // Cambios sobre iniciales desconocidas se guardan aquí y se aplican a S solo al pulsar Guardar.
+    const buf={assign:{},ignore:[]}; // assign: iniciales → personId; ignore: iniciales de otra lista
+    const refresh=()=>{ const r=parseVols(vt.value);
+      const matched=r.matched.slice(); const known=[]; const unknown=[];
+      for(const t of r.other){
+        const px=buf.assign[t]&&S.people.find(x=>x.id===buf.assign[t]);
+        if(px){ if(!matched.includes(px)) matched.push(px); }
+        else if(buf.ignore.includes(t)||(S.cfg.ignoredIni||[]).includes(t)) known.push(t);
+        else unknown.push(t);
+      }
+      vn.value=matched.length;
+      let h=(matched.length?`De tu lista: <b>${matched.map(p=>esc(p.name)).join(', ')}</b>`:'De tu lista: ninguno')+(known.length?` · otras listas: ${known.map(esc).join(', ')}`:'');
+      for(const t of unknown){
+        h+=`<div class="row" style="margin-top:6px"><span><b>${esc(t)}</b> ¿de quién es?</span><select data-ini="${esc(t)}" style="flex:1 1 120px;padding:6px"><option value="">— elige —</option>${activePeople().filter(x=>!x.iniOk||norm(x.ini)===t).map(x=>`<option value="${x.id}">${esc(x.name)}</option>`).join('')}<option value="__other">Otra lista</option></select></div>`; }
       vi.innerHTML=h;
-      vi.querySelectorAll('select[data-ini]').forEach(sel=>sel.onchange=()=>{ const t=sel.dataset.ini; if(sel.value){ const px=S.people.find(x=>x.id===sel.value); px.ini=t; px.iniOk=true; } else { S.cfg.ignoredIni.push(t); } refresh(); });
+      vi.querySelectorAll('select[data-ini]').forEach(sel=>sel.onchange=()=>{ const t=sel.dataset.ini; if(!sel.value) return; if(sel.value==='__other'){ if(!buf.ignore.includes(t)) buf.ignore.push(t); } else { buf.assign[t]=sel.value; } refresh(); });
+    };
+    const applyBuf=()=>{
+      for(const t in buf.assign){ const px=S.people.find(x=>x.id===buf.assign[t]); if(px){ px.ini=t; px.iniOk=true; } }
+      S.cfg.ignoredIni??=[]; for(const t of buf.ignore){ if(!S.cfg.ignoredIni.includes(t)) S.cfg.ignoredIni.push(t); }
     };
     vt.oninput=refresh; if(vt.value) refresh();
     if(isNew){ document.getElementById('o-d').onchange=e=>{ const d=e.target.value; if(!d) return; const wk=isWeekend(d); const h=holidayOn(d); const hs=h&&h.split; document.getElementById('o-am').value=hs?hs.am:wk?(S.cfg.wkAm??2):(S.cfg.defAm??2); document.getElementById('o-pm').value=hs?hs.pm:wk?(S.cfg.wkPm??0):(S.cfg.defPm??2); }; }
     document.getElementById('o-ok').onclick=()=>{
       const d=document.getElementById('o-d').value; if(!d){alert('Falta la fecha');return;}
       o.date=d;o.am=+document.getElementById('o-am').value|0;o.pm=+document.getElementById('o-pm').value|0;o.slots=o.am+o.pm;o.volsTxt=document.getElementById('o-vt').value.trim();o.vols=+document.getElementById('o-v').value|0;o.note=document.getElementById('o-n').value.trim();
-      if(isNew) S.oficios.push(o); dlg.close(); save();
+      applyBuf(); if(isNew) S.oficios.push(o); dlg.close(); save();
     };
   });
 }
@@ -839,7 +886,7 @@ function editOficio(o){
 function editVac(v){
   const isNew=!v; v=v||{id:uid(),personId:S.cfg.me||S.people[0]?.id,from:'',to:'',type:'V'};
   openDlg(`<h2>${isNew?'Agregar periodo':'Editar periodo'}</h2>
-    <label>Persona</label><select id="v-p">${S.people.map(p=>`<option value="${p.id}" ${p.id===v.personId?'selected':''}>${p.name}</option>`).join('')}</select>
+    <label>Persona</label><select id="v-p">${S.people.map(p=>`<option value="${p.id}" ${p.id===v.personId?'selected':''}>${esc(p.name)}</option>`).join('')}</select>
     <label>Tipo</label><select id="v-t"><option value="V" ${v.type==='V'?'selected':''}>Vacaciones</option><option value="C" ${v.type==='C'?'selected':''}>Curso</option></select>
     <div class="row"><div class="grow"><label>Desde</label><input type="date" id="v-f" value="${v.from}"></div><div class="grow"><label>Hasta</label><input type="date" id="v-to" value="${v.to}"></div></div>
     <div class="actions"><button data-close>Cancelar</button><button class="primary" id="v-ok">Guardar</button></div>`,()=>{
@@ -867,8 +914,8 @@ document.getElementById('btn-add-fav').onclick=()=>editFav();
 document.getElementById('btn-avoid-add').onclick=()=>{const d=document.getElementById('avoid-date').value;if(d&&!S.cfg.avoidDates.includes(d)){S.cfg.avoidDates.push(d);save();}};
 document.getElementById('btn-export').onclick=()=>{const a=document.createElement('a');a.href='data:application/json;charset=utf-8,'+encodeURIComponent(JSON.stringify(S,null,2));a.download='tiempo-extra-'+iso(today())+'.json';a.click();};
 document.getElementById('btn-import').onclick=()=>document.getElementById('file-import').click();
-document.getElementById('file-import').onchange=e=>{const f=e.target.files[0];if(!f)return;const rd=new FileReader();rd.onload=()=>{try{const d=JSON.parse(rd.result);if(d.people&&d.entries){S=d;save();}else alert('Archivo no válido');}catch(err){alert('Archivo no válido');}};rd.readAsText(f);};
-document.getElementById('btn-reset').onclick=()=>{if(confirm('Se borrará todo y se cargará el rol de ejemplo. ¿Continuar?')){S=seed();save();}};
+document.getElementById('file-import').onchange=e=>{const f=e.target.files[0];if(!f)return;const rd=new FileReader();rd.onload=()=>{try{const d=JSON.parse(rd.result);if(d.people&&d.entries){S=migrate(d);save();}else alert('Archivo no válido');}catch(err){alert('Archivo no válido');}};rd.readAsText(f);};
+document.getElementById('btn-reset').onclick=()=>{if(confirm('Se borrará todo y se cargará el rol de ejemplo. ¿Continuar?')){S=migrate(seed());save();}};
 
 render();
 </script>
