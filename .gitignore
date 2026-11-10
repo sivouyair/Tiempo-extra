@@ -3,6 +3,8 @@ android/.gradle/
 android/build/
 android/app/build/
 android/app/src/main/assets/index.html
+android/app/src/main/assets/icon-*.png
+android/app/src/main/assets/ocr/
 android/local.properties
 android/.idea/
 *.iml

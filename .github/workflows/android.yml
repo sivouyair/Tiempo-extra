@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - index.html
+      - ocr/**
       - android/**
       - .github/workflows/android.yml
   workflow_dispatch:
@@ -21,7 +22,8 @@ jobs:
       - name: Copiar la app web a assets
         run: |
           mkdir -p android/app/src/main/assets
-          cp index.html android/app/src/main/assets/index.html
+          cp index.html icon-192.png icon-512.png android/app/src/main/assets/
+          cp -r ocr android/app/src/main/assets/ocr
 
       - uses: actions/setup-java@v4
         with:

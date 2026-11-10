@@ -1,0 +1,9 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>T.E. Strategy</title>
+<body style="font-family:sans-serif;padding:24px">Preparando…
+<script>
+// Lee los datos guardados por versiones anteriores (origen file://) y los entrega a la app.
+var d=null; try{ d=localStorage.getItem('tiempo-extra-v1'); }catch(e){}
+try{ AndroidBridge.migrate(d||''); }catch(e){ document.body.textContent='No se pudo iniciar la aplicación.'; }
+</script>

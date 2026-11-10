@@ -1,5 +1,5 @@
 // Service worker: deja la app disponible sin conexión.
-const CACHE = 'tiempo-extra-v1';
+const CACHE = 'tiempo-extra-v2';
 const FILES = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {
